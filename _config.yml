@@ -54,7 +54,7 @@ analytics:
     domain: # fill in your Umami domain
   matomo:
     id: # fill in your Matomo ID
-    domain: # fill in your Matomo domain
+    domain: # fill in your Umami domain
   cloudflare:
     id: # fill in your Cloudflare Web Analytics token
   fathom:
@@ -85,7 +85,7 @@ theme_mode: # [light | dark]
 cdn:
 
 # the avatar on sidebar, support local or CORS resources
-avatar: http://q1.qlogo.cn/g?b=qq&nk=3571278927&s=100
+avatar: /assets/tx.png
 
 # The URL of the site-wide social preview image used in SEO `og:image` meta tag.
 # It can be overridden by a customized `page.image` in front matter.
