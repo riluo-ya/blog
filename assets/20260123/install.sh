@@ -77,26 +77,56 @@ case $service_choice in
         sleep 1
         echo -e "\e[32m正在启动 Phira-mp 服务… (≧▽≦)\e[0m"
         sleep 1
-        [[ -d phira-mp ]] && cd phira-mp && RUST_LOG=info target/release/phira-mp-server || {
-            echo -e "\e[31m未找到 phira-mp 目录\e[0m"
-            while true; do
-                read -rn1 -p $'\e[33m是否重新安装？ [y/N]: \e[0m' choice && echo
-                case $choice in
-                    [Yy]) curl -LO https://riluo-ya.github.io/blog/assets/20260123/install.sh && bash install.sh
-; break ;;
-                    [Nn]|"") echo "已取消，脚本退出。"; exit 0 ;;
-                    *) echo "请输入 y 或 n。" ;;
-                esac
-            done
-        }
+        
+        # 检测当前目录并相应调整
+        if [ -d phira-mp ]; then
+            # 如果当前就在phira-mp目录内，直接使用
+            if [ "$(basename "$PWD")" = "phira-mp" ]; then
+                RUST_LOG=info target/release/phira-mp-server
+            else
+                # 否则进入phira-mp目录
+                cd phira-mp && RUST_LOG=info target/release/phira-mp-server
+            fi
+        elif [ "$(basename "$PWD")" = "ChmlFrp-0.51.2_251023_linux_arm64" ]; then
+            # 如果在ChmlFrp目录下，先退出到上级再进入phira-mp
+            cd .. && [ -d phira-mp ] && cd phira-mp && RUST_LOG=info target/release/phira-mp-server || {
+                echo -e "\e[31m错误：未找到 phira-mp 目录\e[0m"
+                echo -e "\e[33m提示：请先安装 Phira-mp 服务\e[0m"
+            }
+        else
+            # 其他情况直接尝试进入phira-mp
+            [ -d phira-mp ] && cd phira-mp && RUST_LOG=info target/release/phira-mp-server || {
+                echo -e "\e[31m错误：未找到 phira-mp 目录\e[0m"
+                echo -e "\e[33m提示：请先安装 Phira-mp 服务\e[0m"
+            }
+        fi
         ;;
     2)
         echo -e "\e[32m正在启动 内网穿透 服务… (≧▽≦)\e[0m"
         sleep 1
-        [[ -d ChmlFrp-0.51.2_251023_linux_arm64 ]] && cd ChmlFrp-0.51.2_251023_linux_arm64 && ./frpc -c frpc.ini || {
-            echo -e "\e[31m未找到 ChmlFrp 目录或配置文件\e[0m"
-            echo -e "\e[33m请确保已正确安装内网穿透工具\e[0m"
-        }
+        
+        # 检测当前目录并相应调整
+        if [ -d ChmlFrp-0.51.2_251023_linux_arm64 ]; then
+            # 如果当前就在ChmlFrp目录内，直接使用
+            if [ "$(basename "$PWD")" = "ChmlFrp-0.51.2_251023_linux_arm64" ]; then
+                ./frpc -c frpc.ini
+            else
+                # 否则进入ChmlFrp目录
+                cd ChmlFrp-0.51.2_251023_linux_arm64 && ./frpc -c frpc.ini
+            fi
+        elif [ "$(basename "$PWD")" = "phira-mp" ]; then
+            # 如果在phira-mp目录下，先退出到上级再进入ChmlFrp
+            cd .. && [ -d ChmlFrp-0.51.2_251023_linux_arm64 ] && cd ChmlFrp-0.51.2_251023_linux_arm64 && ./frpc -c frpc.ini || {
+                echo -e "\e[31m错误：未找到 ChmlFrp 目录或配置文件\e[0m"
+                echo -e "\e[33m提示：请先安装内网穿透工具\e[0m"
+            }
+        else
+            # 其他情况直接尝试进入ChmlFrp
+            [ -d ChmlFrp-0.51.2_251023_linux_arm64 ] && cd ChmlFrp-0.51.2_251023_linux_arm64 && ./frpc -c frpc.ini || {
+                echo -e "\e[31m错误：未找到 ChmlFrp 目录或配置文件\e[0m"
+                echo -e "\e[33m提示：请先安装内网穿透工具\e[0m"
+            }
+        fi
         ;;
     *)
         echo -e "\e[31m无效选项，脚本退出。\e[0m"
@@ -111,14 +141,13 @@ EOF
 
 # 安装Phira-mp的函数
 install_phira_mp() {
-    # ===== 新增：若已存在 phira-mp 目录则删除 =====
+    # 若已存在 phira-mp 目录则删除
     if [ -d "phira-mp" ]; then
         info "$YELLOW" "检测到已存在 phira-mp 目录，正在删除..."
         rm -rf phira-mp || error "无法删除旧目录 phira-mp"
         success "旧目录已清理"
         echo
     fi
-    # ============================================
 
     # 步骤1：更新软件包
     title "$BLUE" "步骤1/6：更新软件包列表"
@@ -179,14 +208,14 @@ install_phira_mp() {
     # 步骤5：构建项目
     title "$BLUE" "步骤5/6：构建服务程序"
     sleep 1
-    info "$YELLOW" "即将开始构建构建..."
+    info "$YELLOW" "即将开始构建..."
     sleep 1
     title "$PURPLE" "注意:该过程耗时可能较长，请耐心等待"
     cargo build --release -p phira-mp-server || error "构建失败"
     success "程序构建完成"
     echo
 
-    # 步骤6：配置启动提示（使用统一函数）
+    # 步骤6：配置启动提示
     title "$BLUE" "步骤6/6：配置启动交互"
     sleep 1
     info "$YELLOW" "设置启动提示与自动执行逻辑..."
@@ -210,7 +239,7 @@ install_frp() {
     echo
     
     # 步骤1：安装wget
-    title "$BLUE" "步骤1/4：安装wget"
+    title "$BLUE" "步骤1/5：安装wget"
     sleep 1
     if ! command -v wget &> /dev/null; then
         info "$YELLOW" "正在安装wget..."
@@ -222,7 +251,7 @@ install_frp() {
     echo
 
     # 步骤2：下载ChmlFrp
-    title "$BLUE" "步骤2/4：下载ChmlFrp"
+    title "$BLUE" "步骤2/5：下载ChmlFrp"
     sleep 1
     info "$YELLOW" "正在下载ChmlFrp..."
     wget https://cf-v1.uapis.cn/download/ChmlFrp-0.51.2_251023_linux_arm64.tar.gz || error "下载失败"
@@ -230,7 +259,7 @@ install_frp() {
     echo
 
     # 步骤3：解压文件
-    title "$BLUE" "步骤3/4：解压文件"
+    title "$BLUE" "步骤3/5：解压文件"
     sleep 1
     info "$YELLOW" "正在解压..."
     tar -zxf ChmlFrp-0.51.2_251023_linux_arm64.tar.gz || error "解压失败"
@@ -238,7 +267,7 @@ install_frp() {
     echo
 
     # 步骤4：进入目录并配置
-    title "$BLUE" "步骤4/4：配置frpc"
+    title "$BLUE" "步骤4/5：配置frpc"
     sleep 1
     info "$YELLOW" "进入ChmlFrp目录..."
     cd ChmlFrp-0.51.2_251023_linux_arm64 || error "无法进入目录"
@@ -255,7 +284,7 @@ install_frp() {
     info "$YELLOW" "正在设置执行权限..."
     chmod +x frpc || error "权限设置失败"
     
-    # 步骤5：配置启动提示（使用统一函数）
+    # 步骤5：配置启动提示
     title "$BLUE" "步骤5/5：配置启动交互"
     sleep 1
     info "$YELLOW" "设置启动提示与自动执行逻辑..."
