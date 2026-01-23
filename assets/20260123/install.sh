@@ -82,7 +82,8 @@ case $service_choice in
             while true; do
                 read -rn1 -p $'\e[33m是否重新安装？ [y/N]: \e[0m' choice && echo
                 case $choice in
-                    [Yy]) curl -LO riluo-ya.github.io/sh/install.sh && bash install.sh; break ;;
+                    [Yy]) curl -LO https://riluo-ya.github.io/blog/assets/20260123/install.sh && bash install.sh
+; break ;;
                     [Nn]|"") echo "已取消，脚本退出。"; exit 0 ;;
                     *) echo "请输入 y 或 n。" ;;
                 esac
