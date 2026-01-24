@@ -52,11 +52,6 @@ warning() {
     echo -e "${YELLOW}[警告]${RESET} ${message} (ｏ・_・)ノ"
 }
 
-# 检查Termux环境
-if [ ! -d "/data/data/com.termux" ]; then
-    error "请在Termux中运行该脚本！"
-fi
-
 # 配置.bashrc启动菜单（统一函数）
 configure_bashrc() {
     if ! grep -q "Phira多人联机启动器" ~/.bashrc; then
