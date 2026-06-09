@@ -98,15 +98,15 @@ comments:
   provider: giscus
   giscus:
     repo: riluo-ya/blog
-    repo_id: "R_kgDORLWz4g"
+    repo_id: "R_kgDOS0Rhwg"
     category: General
-    category_id: "DIC_kwDORLWz4s4C3LaM"
+    category_id: "DIC_kwDOS0Rhws4C-0cg"
     mapping: pathname
     strict: "1"
     reactions_enabled: "1"
     emit_metadata: "0"
     input_position: bottom
-    theme: preferred_color_scheme
+    theme: dark
     lang: zh-CN
 
 # Self-hosted static assets, optional › https://github.com/cotes2020/chirpy-static-assets
