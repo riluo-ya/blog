@@ -3,8 +3,8 @@
 layout: post
 title: "平邑一中王继峰道歉信"
 date: 2026-06-20 9:07:00 +0800
-categories: 随笔
-tags: [平邑一中,王继峰,道歉信]
+categories: 
+tags: 
 media_subpath: 'assets/20260620'
 last_modified_at: 2026-06-20 9:30:00 +0800
 hidden: true
