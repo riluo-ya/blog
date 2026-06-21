@@ -2,7 +2,8 @@
 # ======================================================
 # Phira MP 服务器管理脚本 - Termux 专用版
 # 作者: Phira MP Team
-# 版本: v1.3.1
+# 版本: v1.3.3
+# 更新: 修复 git pull 本地文件冲突问题，自动暂存并恢复本地修改
 # ======================================================
 # 颜色定义
 RED='\033[0;31m'
@@ -55,7 +56,7 @@ print_banner() {
     echo "║   ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝    ╚═╝     ╚═╝╚═╝      ║"
     echo "║                                                              ║"
     echo "║                Phira MP 服务器管理面板                        ║"
-    echo "║                    Termux 专用版 v1.3.1                      ║"
+    echo "║                    Termux 专用版 v1.3.3                      ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -224,11 +225,11 @@ config_default_lang() {
     read -p "按回车键继续..."
 }
 # ==========================================
-# 检测更新 v1.3.1 (GitHub Only)
+# 检测更新 v1.3.3 (GitHub Only)
 # ==========================================
 check_update() {
     print_banner
-    print_menu_title "检测更新"
+    print_menu_title "更新管理脚本"
     
     echo ""
     info_msg "正在连接 GitHub 获取更新信息..."
@@ -328,6 +329,75 @@ check_update() {
     exec "$SCRIPT_PATH"
     exit 0
 }
+
+# ==========================================
+# 更新 tphira-mp 服务端代码 (git pull 自动处理本地冲突)
+# ==========================================
+update_phira_project() {
+    print_banner
+    print_menu_title "更新服务端代码"
+    
+    cd "$PROJECT_DIR" || exit 1
+    
+    info_msg "项目目录: $PROJECT_DIR"
+    echo ""
+    
+    # 检查 git 命令是否存在
+    if ! command -v git &> /dev/null; then
+        error_msg "未检测到 git 命令"
+        info_msg "请先执行 pkg install git 安装 git 环境"
+        echo ""
+        read -p "按回车键继续..."
+        return
+    fi
+    
+    # 检查是否为 git 仓库
+    if [ ! -d ".git" ]; then
+        error_msg "当前项目目录不是 Git 仓库，无法使用 git pull 更新"
+        echo ""
+        read -p "按回车键继续..."
+        return
+    fi
+    
+    info_msg "正在暂存本地修改..."
+    git stash -q 2>/dev/null
+    
+    info_msg "正在拉取最新代码..."
+    echo -e "${GRAY}─────────────────────────────────────────────────────────────${NC}"
+    echo ""
+    
+    # 执行 git pull
+    if git pull; then
+        echo ""
+        echo -e "${GRAY}─────────────────────────────────────────────────────────────${NC}"
+        echo ""
+        success_msg "tphira-mp 服务端代码更新完成"
+        
+        # 尝试恢复本地暂存的修改
+        if git stash list | grep -q .; then
+            info_msg "正在恢复本地修改..."
+            if git stash pop -q 2>/dev/null; then
+                success_msg "本地修改已恢复"
+            else
+                warn_msg "本地修改与远程代码存在冲突，请手动处理冲突文件"
+            fi
+        fi
+    else
+        echo ""
+        echo -e "${GRAY}─────────────────────────────────────────────────────────────${NC}"
+        echo ""
+        error_msg "代码更新失败，请检查网络连接"
+        # 拉取失败也恢复本地修改
+        if git stash list | grep -q .; then
+            git stash pop -q 2>/dev/null
+            info_msg "已恢复本地暂存的修改"
+        fi
+    fi
+    
+    echo ""
+    read -p "按回车键继续..."
+}
+
 # 启动 PhiraMP
 start_phiramp() {
     print_banner
@@ -938,6 +1008,31 @@ settings_menu() {
         esac
     done
 }
+
+# 更新菜单
+update_menu() {
+    while true; do
+        print_banner
+        print_menu_title "更新与升级"
+        
+        echo -e "  ${WHITE}[1]${NC} 更新管理脚本"
+        echo -e "  ${WHITE}[2]${NC} 更新服务端代码 (git pull)"
+        echo ""
+        echo -e "  ${WHITE}[0]${NC} 返回主菜单"
+        echo ""
+        echo -e "${CYAN}─────────────────────────────────────────────────────────────${NC}"
+        echo ""
+        
+        read -p "请选择操作 [0-2]: " choice
+        case $choice in
+            1) check_update ;;
+            2) update_phira_project ;;
+            0) break ;;
+            *) sleep 0.5 ;;
+        esac
+    done
+}
+
 # 主菜单
 main_menu() {
     find_project_dir
@@ -947,7 +1042,7 @@ main_menu() {
         echo ""
         echo -e "  ${WHITE}[1]${NC} 启动 PhiraMP 服务器"
         echo -e "  ${WHITE}[2]${NC} 服务器设置"
-        echo -e "  ${WHITE}[3]${NC} 检测更新"
+        echo -e "  ${WHITE}[3]${NC} 更新与升级"
         echo ""
         echo -e "  ${WHITE}[0]${NC} 退出脚本"
         echo ""
@@ -960,7 +1055,7 @@ main_menu() {
         case $choice in
             1) start_phiramp ;;
             2) settings_menu ;;
-            3) check_update ;;
+            3) update_menu ;;
             0) 
                 print_banner
                 echo ""
