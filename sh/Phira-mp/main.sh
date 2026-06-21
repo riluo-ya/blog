@@ -4,7 +4,6 @@
 # 作者: Phira MP Team
 # 版本: v1.3.1
 # ======================================================
-
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -15,15 +14,12 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 GRAY='\033[0;90m'
 NC='\033[0m'
-
 # 配置文件路径
 CONFIG_FILE="server_config.yml"
 SCRIPT_PATH="$0"
-
 # GitHub 原始地址
 UPDATE_URL="https://raw.githubusercontent.com/riluo-ya/blog/main/sh/Phira-mp/main.sh"
 MD5_URL="https://raw.githubusercontent.com/riluo-ya/blog/main/sh/Phira-mp/mainmd5.txt"
-
 # 自动检测 tphira-mp 目录位置
 find_project_dir() {
     if [ -d "$(pwd)/tphira-mp" ]; then
@@ -45,7 +41,6 @@ find_project_dir() {
         fi
     fi
 }
-
 # 打印横幅
 print_banner() {
     clear
@@ -55,7 +50,7 @@ print_banner() {
     echo "║   ██████╗ ██╗  ██╗██╗██████╗  █████╗     ███╗   ███╗██████╗  ║"
     echo "║   ██╔══██╗██║  ██║██║██╔══██╗██╔══██╗    ████╗ ████║██╔══██╗ ║"
     echo "║   ██████╔╝███████║██║██████╔╝███████║    ██╔████╔██║██████╔╝ ║"
-    echo "║   ██╔═══╝ ██╔══██║██║██╔══██╗██╔══██║    ██║╚██╔╝██║██╔═══╝  ║"
+    echo "║   ██╔═══╝ ██╔══██║██║██╔══██╗██╔══██╗    ██║╚██╔╝██║██╔═══╝  ║"
     echo "║   ██║     ██║  ██║██║██║  ██║██║  ██║    ██║ ╚═╝ ██║██║      ║"
     echo "║   ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝    ╚═╝     ╚═╝╚═╝      ║"
     echo "║                                                              ║"
@@ -64,7 +59,6 @@ print_banner() {
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
-
 # 打印菜单标题
 print_menu_title() {
     echo ""
@@ -73,23 +67,19 @@ print_menu_title() {
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
-
 success_msg() { echo -e "${GREEN}✓ $1${NC}"; }
 error_msg() { echo -e "${RED}✗ $1${NC}"; }
 info_msg() { echo -e "${BLUE}ℹ $1${NC}"; }
 warn_msg() { echo -e "${YELLOW}⚠ $1${NC}"; }
-
 # 读取配置值
 read_config() {
     local key="$1"
     grep "^${key}:" "$PROJECT_DIR/$CONFIG_FILE" 2>/dev/null | sed 's/^[^:]*:[[:space:]]*//' | sed 's/^"//;s/"$//'
 }
-
 # 读取保存的用户名（从ADMIN_TOKEN注释中）
 read_saved_username() {
     grep "# ADMIN_USERNAME:" "$PROJECT_DIR/$CONFIG_FILE" 2>/dev/null | sed 's/.*ADMIN_USERNAME:[[:space:]]*//'
 }
-
 # 更新配置值
 update_config() {
     local key="$1"
@@ -110,19 +100,16 @@ update_config() {
         echo "${key}: ${value}" >> "$CONFIG_FILE"
     fi
 }
-
 uncomment_config() {
     local key="$1"
     cd "$PROJECT_DIR" || exit 1
     sed -i "s/^# *${key}:/${key}:/" "$CONFIG_FILE"
 }
-
 comment_config() {
     local key="$1"
     cd "$PROJECT_DIR" || exit 1
     sed -i "s/^${key}:/# ${key}:/" "$CONFIG_FILE"
 }
-
 # 生成 MD5 Token（确定性：相同用户名始终生成相同 Token）
 generate_token() {
     local username="$1"
@@ -134,7 +121,6 @@ generate_token() {
     echo "# ADMIN_USERNAME: ${username}" >> "$CONFIG_FILE"
     echo "$token"
 }
-
 # 查看密钥（修复版 - 严格用户名验证）
 view_token() {
     print_banner
@@ -189,11 +175,57 @@ view_token() {
     echo ""
     read -p "按回车键继续..."
 }
-
+# 默认语言设置
+config_default_lang() {
+    print_banner
+    print_menu_title "默认语言设置"
+    
+    cd "$PROJECT_DIR" || exit 1
+    current=$(read_config "DEFAULT_LANG")
+    
+    echo -e "  当前默认语言: ${CYAN}${current:-zh-CN}${NC}"
+    echo ""
+    echo -e "  可选语言列表:"
+    echo -e "    ${WHITE}[1]${NC} en-US  英语"
+    echo -e "    ${WHITE}[2]${NC} ja-JP  日语"
+    echo -e "    ${WHITE}[3]${NC} ko-KR  韩语"
+    echo -e "    ${WHITE}[4]${NC} ru-RU  俄语"
+    echo -e "    ${WHITE}[5]${NC} zh-CN  简体中文"
+    echo -e "    ${WHITE}[6]${NC} zh-TW  繁体中文"
+    echo ""
+    
+    read -p "请输入对应序号选择语言 (回车保持默认): " lang_choice
+    
+    case $lang_choice in
+        1) lang_val="en-US" ;;
+        2) lang_val="ja-JP" ;;
+        3) lang_val="ko-KR" ;;
+        4) lang_val="ru-RU" ;;
+        5) lang_val="zh-CN" ;;
+        6) lang_val="zh-TW" ;;
+        "") 
+            info_msg "保持默认值不变"
+            echo ""
+            read -p "按回车键继续..."
+            return
+            ;;
+        *)
+            error_msg "无效的选项"
+            echo ""
+            read -p "按回车键继续..."
+            return
+            ;;
+    esac
+    
+    update_config "DEFAULT_LANG" "$lang_val" "true"
+    success_msg "默认语言已设置为: $lang_val"
+    
+    echo ""
+    read -p "按回车键继续..."
+}
 # ==========================================
 # 检测更新 v1.3.1 (GitHub Only)
 # ==========================================
-
 check_update() {
     print_banner
     print_menu_title "检测更新"
@@ -296,7 +328,6 @@ check_update() {
     exec "$SCRIPT_PATH"
     exit 0
 }
-
 # 启动 PhiraMP
 start_phiramp() {
     print_banner
@@ -305,19 +336,22 @@ start_phiramp() {
     cd "$PROJECT_DIR" || exit 1
     
     info_msg "项目目录: $PROJECT_DIR"
+    default_lang=$(read_config "DEFAULT_LANG")
+    default_lang=${default_lang:-zh-CN}
+    info_msg "运行语言: $default_lang"
+    echo ""
     info_msg "正在启动 PhiraMP 服务器..."
     echo ""
     echo -e "${GRAY}─────────────────────────────────────────────────────────────${NC}"
     echo ""
     
-    pnpm start
+    LANG="$default_lang" pnpm start
     
     echo ""
     echo -e "${GRAY}─────────────────────────────────────────────────────────────${NC}"
     echo ""
     read -p "按回车键返回主菜单..."
 }
-
 # 基础配置菜单
 basic_config_menu() {
     while true; do
@@ -328,31 +362,33 @@ basic_config_menu() {
         room_max_users=$(read_config "ROOM_MAX_USERS")
         server_name=$(read_config "SERVER_NAME")
         room_list_tip=$(read_config "ROOM_LIST_TIP")
+        default_lang=$(read_config "DEFAULT_LANG")
         
         echo -e "  ${WHITE}[1]${NC} API 服务设置            状态: $( [ "$http_service" = "true" ] && echo -e "${GREEN}已启用${NC}" || echo -e "${RED}已禁用${NC}" )"
         echo -e "  ${WHITE}[2]${NC} 房间最大人数            值: ${CYAN}${room_max_users:-12}人${NC}"
         echo -e "  ${WHITE}[3]${NC} 服务器名称              值: ${CYAN}\"${server_name:-Phira MP}\"${NC}"
         echo -e "  ${WHITE}[4]${NC} 房间列表提示文案        值: ${CYAN}\"${room_list_tip:-未设置}\"${NC}"
         echo -e "  ${WHITE}[5]${NC} 查看管理密钥"
+        echo -e "  ${WHITE}[6]${NC} 默认语言设置            值: ${CYAN}${default_lang:-zh-CN}${NC}"
         echo ""
         echo -e "  ${WHITE}[0]${NC} 返回上级菜单"
         echo ""
         echo -e "${CYAN}─────────────────────────────────────────────────────────────${NC}"
         echo ""
         
-        read -p "请选择操作 [0-5]: " choice
+        read -p "请选择操作 [0-6]: " choice
         case $choice in
             1) config_api_service ;;
             2) config_room_max_users ;;
             3) config_server_name ;;
             4) config_room_list_tip ;;
             5) view_token ;;
+            6) config_default_lang ;;
             0) break ;;
             *) sleep 0.5 ;;
         esac
     done
 }
-
 # 配置 API 服务
 config_api_service() {
     print_banner
@@ -423,7 +459,6 @@ config_api_service() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_room_max_users() {
     print_banner
     print_menu_title "房间最大人数配置"
@@ -445,7 +480,6 @@ config_room_max_users() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_server_name() {
     print_banner
     print_menu_title "服务器名称配置"
@@ -467,7 +501,6 @@ config_server_name() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_room_list_tip() {
     print_banner
     print_menu_title "房间列表提示文案"
@@ -491,7 +524,6 @@ config_room_list_tip() {
     echo ""
     read -p "按回车键继续..."
 }
-
 # 进阶配置菜单
 advanced_config_menu() {
     while true; do
@@ -531,7 +563,6 @@ advanced_config_menu() {
         esac
     done
 }
-
 config_network() {
     print_banner
     print_menu_title "网络配置"
@@ -564,7 +595,6 @@ config_network() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_log_level() {
     print_banner
     print_menu_title "日志等级配置"
@@ -584,7 +614,6 @@ config_log_level() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_features() {
     print_banner
     print_menu_title "功能开关"
@@ -616,7 +645,6 @@ config_features() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_replay() {
     print_banner
     print_menu_title "回放录制配置"
@@ -657,7 +685,6 @@ config_replay() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_api_endpoints() {
     print_banner
     print_menu_title "API 端点与代理"
@@ -690,7 +717,6 @@ config_api_endpoints() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_redis() {
     print_banner
     print_menu_title "Redis 缓存配置"
@@ -731,7 +757,6 @@ config_redis() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_share_station() {
     print_banner
     print_menu_title "分享站配置"
@@ -757,7 +782,6 @@ config_share_station() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_limits() {
     print_banner
     print_menu_title "连接数与房间数限制"
@@ -789,7 +813,6 @@ config_limits() {
     echo ""
     read -p "按回车键继续..."
 }
-
 config_security() {
     print_banner
     print_menu_title "安全配置"
@@ -821,7 +844,6 @@ config_security() {
     echo ""
     read -p "按回车键继续..."
 }
-
 # 账号配置（观战/测试账号）- 可编辑版
 config_accounts() {
     print_banner
@@ -893,7 +915,6 @@ config_accounts() {
     echo ""
     read -p "按回车键继续..."
 }
-
 # 设置菜单
 settings_menu() {
     while true; do
@@ -917,7 +938,6 @@ settings_menu() {
         esac
     done
 }
-
 # 主菜单
 main_menu() {
     find_project_dir
@@ -952,5 +972,4 @@ main_menu() {
         esac
     done
 }
-
 main_menu
