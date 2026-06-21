@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 # ==================== 全局变量 ====================
-TOTAL_STEPS=7
+TOTAL_STEPS=6
 CURRENT_STEP=0
 INSTALL_DIR="$HOME/tphira-mp"
 MAIN_SH_URL="https://raw.githubusercontent.com/riluo-ya/blog/main/sh/Phira-mp/main.sh"
@@ -224,69 +224,7 @@ main() {
     sleep 1
     
     # ==================================================
-    # 步骤 6: 修补语言文件 l10n.ts
-    # ==================================================
-    CURRENT_STEP=$((CURRENT_STEP + 1))
-    show_progress $CURRENT_STEP $TOTAL_STEPS "修补语言系统文件"
-    
-    print_info "正在修补 src/server/utils/l10n.ts..."
-    
-    cat > src/server/utils/l10n.ts << 'EOF'
-import { FluentBundle, FluentResource } from "@fluent/bundle";
-import { negotiateLanguages } from "@fluent/langneg";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { getAppPaths } from "../utils/appPaths.js";
-const SUPPORTED_LANGS = ["en-US", "zh-CN", "zh-TW", "ja-JP", "ko-KR", "ru-RU"];
-function loadBundle(lang) {
-    const bundle = new FluentBundle(lang, { useIsolating: false });
-    const path = join(getAppPaths().localesDir, `${lang}.ftl`);
-    const source = readFileSync(path, "utf8");
-    bundle.addResource(new FluentResource(source));
-    return bundle;
-}
-const bundles = Object.fromEntries(SUPPORTED_LANGS.map((lang) => [lang, loadBundle(lang)]));
-export class Language {
-    lang;
-    constructor(lang) {
-        const normalized = normalizeLocaleHint(lang);
-        const resolved = negotiateLanguages([normalized], SUPPORTED_LANGS, { defaultLocale: "zh-CN" });
-        this.lang = resolved[0] ?? "zh-CN";
-    }
-    format(key, args) {
-        const bundle = bundles[this.lang];
-        const msg = bundle.getMessage(key);
-        if (!msg || !msg.value) {
-            throw new Error(`缺少翻译：${key}（lang=${this.lang}）`);
-        }
-        // 修复 who/user 变量不一致的 bug
-        const fixedArgs = args ? { ...args } : {};
-        if (fixedArgs.who !== undefined && fixedArgs.user === undefined) {
-            fixedArgs.user = fixedArgs.who;
-        }
-        if (fixedArgs.user !== undefined && fixedArgs.who === undefined) {
-            fixedArgs.who = fixedArgs.user;
-        }
-        return bundle.formatPattern(msg.value, fixedArgs, null);
-    }
-}
-function normalizeLocaleHint(hint) {
-    const trimmed = hint.trim();
-    if (!trimmed)
-        return "";
-    const base = trimmed.split(/[.@]/, 1)[0] ?? trimmed;
-    return base.replace(/_/g, "-");
-}
-export function tl(lang, key, args) {
-    return lang.format(key, args);
-}
-EOF
-    
-    print_success "l10n.ts 文件修补完成（已修复 who/user 变量不一致问题）"
-    sleep 0.5
-    
-    # ==================================================
-    # 步骤 7: 配置 .bashrc 自动启动
+    # 步骤 6: 配置 .bashrc 自动启动
     # ==================================================
     CURRENT_STEP=$((CURRENT_STEP + 1))
     show_progress $CURRENT_STEP $TOTAL_STEPS "配置 .bashrc 自动启动"
