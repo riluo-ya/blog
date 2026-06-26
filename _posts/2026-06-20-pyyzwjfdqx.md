@@ -8,6 +8,8 @@ tags:
 media_subpath: 'assets/20260620'
 last_modified_at: 
 hidden: true
+description: 平邑一中王继峰道歉信
+
 ---
 
 ## 正文
