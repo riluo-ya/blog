@@ -4,72 +4,76 @@ icon: fas fa-info-circle
 order: 4
 ---
 
->本文章图片由[豆包AI](https://www.doubao.com/)生成
-
->这个博客用 [Jekyll](https://jekyllrb.com/) + [Chirpy](https://github.com/cotes2020/jekyll-theme-chirpy) 主题搭建，托管在 [GitHub Pages](https://pages.github.com/) 上。
-
-## 你好
+## 关于我
 
 这里是**日落-ya**
-![日落](1.jpg)
+坐标山东临沂
+08年巨蟹男
 
-## 关于我
-### 学业
+## 兴趣爱好
 
-是一名高中生
-2027年高考
+###音游
+喜欢打打音游什么的
+主玩
+[Phigros](https://www.taptap.cn/app/165287)
+[pjsk](https://pjsk.nvsgames.cn/)
+[喵斯快跑](https://musedash.peropero.net/)
 
-### 性格
+###听歌
+(¯▽¯)/♫
+给你们看看我的歌单
 
-我是一个内向的孩子（）如果熟悉的话就会变成大喇叭……
-![反差](4.jpg)
-有时候喜欢自己一个人独处什么的
+[![死别](assets/20260120/死别.jpg)](https://b23.tv/4TsRWH1)
+[![巴拉莱卡](assets/20260120/巴拉莱卡.png)](https://b23.tv/ZpL2ghP)
+[![R.I.P.](assets/20260120/R.I.P..png)](https://b23.tv/kUKr3wR)
+[![仰望](assets/20260120/仰望.png)](https://b23.tv/7vBK0eS)
 
-### 我的MBTI
-我的[MBTI](https://www.16personalities.com/ch)是
-**ISFP-T**
-![mbti](5.jpg)
+~~还是挺杂的~~
 
-### 其他属性
-我是个同性恋 0
+### 拍照
+没有设备，手机偶尔拍拍📸(^_^)
+展示一下吧…
+![Image_1785218657237_736.jpg](assets/20260120/Image_1785218657237_736.jpg)
+![Image_1785218655266_435.jpg](assets/20260120/Image_1785218655266_435.jpg)
+![Image_1785218654010_456.jpg](assets/20260120/Image_1785218654010_456.jpg)
 
-## 我的生活
-### 日常
-生活就是一个超级松弛的状态啊~
-- 听歌
-![听歌](3.jpg)
-- 撸猫撸狗
-![猫狗](2.jpg)
-- 刷视频
-- 拍拍照
-- 研究一些新东西
+## 学业相关
+- 2015级小学
+- 2021级初中
+- 2024级高中
+~~- 2027级大学~~（还没考呢）
 
-### 游戏
-目前主要玩**[音游](https://zh.moegirl.org.cn/音乐游戏)**
-主要是移动端音游
-- [Phigros](https://www.taptap.cn/app/165287)
-- [Phira](https://phira.moe/)
-- [喵斯快跑](https://musedash.peropero.net/)
-- [初音未来缤纷舞台](https://pjsk.nvsgames.cn/)
-- [Milthm](https://milthm.cn/)
-- [RYCEAM](https://www.taptap.cn/app/237034)
+成绩也是牛而逼之•ᴗ•💧总之还是比较差的，咱们大专见
 
-## 这个博客是干嘛用的
+## 性格类
 
-弄这个博客就是想要有地方分享
-在这里会有一些随笔，记录一些日常
-也会有一些技术上的内容以及软件分享
-在这里没有什么宏大的计划 想到什么就写什么而已
+熟悉之前高冷的一批，熟悉之后就会发现是不是换了个人格…(｀Δ´)!
 
-## 联系我
-可以通过以下方式联系到我
-- [QQ 3571278927](https://qm.qq.com/q/y9eaKky7rG)
-- [哔哩哔哩 UID:1691468668](https://b23.tv/UgfvlzX)
-- 微信 riluo-ya
-![微信](6.png)
-- [抖音 riluoyaa](https://v.douyin.com/xuSxHSkn5uQ/)
+### 各种小测试类的结果
 
-## 最后
-感谢您能看到这里！
-希望可以在这个小小的角落里有一个驻脚的地方
-欢迎常来！
+#### MBTI
+我的[MBTI](https://www.16personalities.com/ch)是ISFP（冒险家）
+![ISFP](assets/20260120/isfp.png)
+
+#### SBTI
+我的[SBTI](https://sbti.dev/)是SOLO（孤儿）
+![solo](assets/20260120/solo.webp)
+
+### 取向相关
+
+我是同性恋（Gay）
+是0 ~~（山东不能有0）~~
+
+##联系我
+
+### QQ
+QQ号[3571278927](https://qm.qq.com/q/hc2WyLepRC)
+
+### 抖音
+抖音号[riluo-ya](https://v.douyin.com/Mxk43R6E6iU/)
+
+### 哔哩哔哩
+UID:[1691468668](https://b23.tv/i6SeC2v)
+
+### QQ群
+群号[1031503686](https://qm.qq.com/q/6OreXSRdJ0)
