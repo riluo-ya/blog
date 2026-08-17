@@ -12,10 +12,10 @@ order: 4
 
 08年巨蟹男
 
-
 ## 兴趣爱好
 
-###音游
+### 音游
+
 喜欢打打音游什么的
 
 主玩
@@ -26,19 +26,18 @@ order: 4
 
 [喵斯快跑](https://musedash.peropero.net/)
 
-
 ###听歌
 (¯▽¯)/♫
 
-给你们看看我的歌单
+给你们看看我的歌单（点击可跳转）
 
-[![死别](assets/20260120/死别.jpg)](https://b23.tv/4TsRWH1)
+[![死别](死别.jpg)](https://b23.tv/4TsRWH1)
 
-[![巴拉莱卡](assets/20260120/巴拉莱卡.png)](https://b23.tv/ZpL2ghP)
+[![巴拉莱卡](巴拉莱卡.png)](https://b23.tv/ZpL2ghP)
 
-[![R.I.P.](assets/20260120/R.I.P..png)](https://b23.tv/kUKr3wR)
+[![R.I.P.](R.I.P..png)](https://b23.tv/kUKr3wR)
 
-[![仰望](assets/20260120/仰望.png)](https://b23.tv/7vBK0eS)
+[![仰望](仰望.png)](https://b23.tv/7vBK0eS)
 
 
 ~~还是挺杂的~~
@@ -48,11 +47,11 @@ order: 4
 
 展示一下吧…
 
-![Image_1785218657237_736.jpg](assets/20260120/Image_1785218657237_736.jpg)
+![Image_1785218657237_736.jpg](Image_1785218657237_736.jpg)
 
-![Image_1785218655266_435.jpg](assets/20260120/Image_1785218655266_435.jpg)
+![Image_1785218655266_435.jpg](Image_1785218655266_435.jpg)
 
-![Image_1785218654010_456.jpg](assets/20260120/Image_1785218654010_456.jpg)
+![Image_1785218654010_456.jpg](Image_1785218654010_456.jpg)
 
 
 ## 学业相关
@@ -75,12 +74,13 @@ order: 4
 ### 各种小测试类的结果
 
 #### MBTI
+
 我的[MBTI](https://www.16personalities.com/ch)是ISFP（冒险家）
-![ISFP](assets/20260120/isfp.png)
+![ISFP](isfp.png)
 
 #### SBTI
 我的[SBTI](https://sbti.dev/)是SOLO（孤儿）
-![solo](assets/20260120/solo.webp)
+![solo](solo.webp)
 
 ### 取向相关
 
