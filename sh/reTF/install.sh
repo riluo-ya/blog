@@ -56,10 +56,54 @@ ok "环境检查通过"
 
 # ---------- 2. 安装依赖 ----------
 step "2/6 安装依赖（python / clang / libusb / termux-api / curl）"
+echo ""
+echo "     ⚠ 这一步要联网下载几十 MB，通常 2~10 分钟"
+echo "       下面会滚动很多行，那就是进度，别关掉 Termux、别锁屏"
+echo ""
+
+# 包名 -> 装完后用来判断的命令（python 包装完命令叫 python3）
+chk() {
+    case "$1" in
+        python) command -v python3 >/dev/null 2>&1 ;;
+        *)      command -v "$1" >/dev/null 2>&1 ;;
+    esac
+}
+
+PKGS="python clang libusb termux-api curl"
+NPKG=$(echo "$PKGS" | wc -w | tr -d ' ')
+i=0
+
 if command -v pkg >/dev/null 2>&1; then
-    pkg update -y >/dev/null 2>&1 || warn "pkg update 有警告，继续"
-    pkg install -y python clang libusb termux-api curl >/dev/null 2>&1 \
-        || { echo "    重试安装（显示详细信息）..."; pkg install -y python clang libusb termux-api curl; }
+    printf "     ${B}· 更新软件源列表...${N}\n"
+    pkg update -y
+    echo ""
+
+    for p in $PKGS; do
+        i=$((i + 1))
+        if chk "$p"; then
+            printf "     ${G}[%d/%d] %-11s 已经装过了，跳过${N}\n" "$i" "$NPKG" "$p"
+            echo ""
+            continue
+        fi
+        printf "     ${B}>>> [%d/%d] 开始安装 %s${N}\n" "$i" "$NPKG" "$p"
+        pkg install -y "$p"
+        if chk "$p"; then
+            printf "     ${G}<<< [%d/%d] %s 安装完成 ✓${N}\n" "$i" "$NPKG" "$p"
+        else
+            printf "     ${R}<<< [%d/%d] %s 安装失败 ✗${N}\n" "$i" "$NPKG" "$p"
+            printf "         重试一次？[1=重试 0=跳过继续]（默认 1）："
+            read -r r
+            if [ "${r:-1}" = "1" ]; then
+                printf "     ${B}>>> 重试安装 %s${N}\n" "$p"
+                pkg install -y "$p"
+                chk "$p" && printf "     ${G}<<< %s 这次装好了 ✓${N}\n" "$p" \
+                         || printf "     ${Y}<<< %s 仍然失败，稍后可手动执行：pkg install %s${N}\n" "$p" "$p"
+            fi
+        fi
+        echo ""
+    done
+else
+    warn "没找到 pkg 命令（不是 Termux？），跳过自动安装，请自己确认依赖齐不齐"
 fi
 
 command -v python3 >/dev/null 2>&1 || die "python3 没装上，请手动执行：pkg install python"
@@ -86,22 +130,26 @@ ok "安装目录：$RETF"
 # ---------- 4. 下载脚本 ----------
 step "4/6 从 gcore CDN 下载脚本"
 dl() {  # dl 基础URL 文件名
-    local url="$1/$2" f="$2" i
+    local url="$1/$2" f="$2" i sz
     for i in 1 2 3; do
-        if curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 "$url" -o "$RETF/$f" 2>/dev/null && [ -s "$RETF/$f" ]; then
+        printf "     ${B}↓ %s${N}（第 %d 次）\n" "$f" "$i"
+        if curl -fL --retry 2 --connect-timeout 15 --max-time 180 -# "$url" -o "$RETF/$f" \
+            && [ -s "$RETF/$f" ]; then
+            sz=$(wc -c < "$RETF/$f" 2>/dev/null | tr -d ' ')
+            printf "     ${G}√ %s 下载完成${N}（%s 字节）\n" "$f" "$sz"
             return 0
         fi
-        printf "     %s 第 %d 次下载失败，重试中...\n" "$f" "$i"
+        printf "     ${Y}%s 第 %d 次失败，2 秒后重试...${N}\n" "$f" "$i"
         sleep 2
     done
     return 1
 }
 fail=0
 for f in $MAIN_FILES; do
-    dl "$BASE" "$f" && printf "     ${G}√${N} %s\n" "$f" || { printf "     ${R}x %s 下载失败${N}\n" "$f"; fail=$((fail+1)); }
+    dl "$BASE" "$f" || { printf "     ${R}x %s 下载失败${N}\n" "$f"; fail=$((fail+1)); }
 done
 for f in $SUB_FILES; do
-    dl "$SUB" "$f" && printf "     ${G}√${N} %s\n" "$f" || { printf "     ${R}x %s 下载失败${N}\n" "$f"; fail=$((fail+1)); }
+    dl "$SUB" "$f" || { printf "     ${R}x %s 下载失败${N}\n" "$f"; fail=$((fail+1)); }
 done
 [ "$fail" -gt 0 ] && die "有 $fail 个文件下载失败。请检查网络，或确认仓库路径：$BASE"
 ok "7 个文件全部下载完成"
@@ -115,6 +163,7 @@ ok "已适配安装目录并加上执行权限"
 
 # ---------- 5. 编译核心程序 ----------
 step "5/6 编译 scsi_dump（核心读卡程序）"
+printf "     正在编译，通常十几秒...\n"
 if clang -O2 -o "$RETF/scsi_dump" "$RETF/scsi_dump.c" -lusb-1.0 2>"$RETF/compile.log"; then
     ok "编译成功：$RETF/scsi_dump"
 else
