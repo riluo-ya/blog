@@ -9,7 +9,7 @@
 #
 #  它会做六件事：
 #    1. 装依赖（python / clang / libusb / termux-api / curl）
-#    2. 从 gcore CDN 下载 main.sh 和 install/ 目录下的 6 个脚本
+#    2. 下载 main.sh 和 install/ 目录下的 6 个脚本（多线路，失败自动切换）
 #    3. 把脚本里写死的 $HOME 改成安装目录，保证换个目录也能跑
 #    4. 编译核心程序 scsi_dump
 #    5. 申请存储权限、生成配置文件
@@ -20,11 +20,24 @@ set -u
 
 # ---------- 可改的配置 ----------
 # main.sh 放在 sh/reTF/ 下，其余 6 个脚本放在 sh/reTF/install/ 下
-BASE="${BASE:-https://gcore.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF}"
-SUB="$BASE/install"
 MAIN_FILES="main.sh"
 SUB_FILES="scsi_dump.c scsi_wrap.sh seg_scan.sh carve_photos.py rename_by_exif.py generate_fonts_json.py"
 RETF="${RETF_DIR:-/retf}"     # 想装到别的目录：RETF_DIR=/sdcard/retf bash install.sh
+
+# ---------- 下载源：按优先级排，一个不行就换下一个 ----------
+# 格式："名字|URL模板"，{p} 会替换成文件在仓库里的相对路径
+# 顺序：jsDelivr 各节点 → GitHub 代理镜像 → 最后才用 GitHub 原生
+SOURCES="${SOURCES:-
+jsDelivr-gcore|https://gcore.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+jsDelivr-cdn|https://cdn.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+jsDelivr-fastly|https://fastly.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+jsDelivr-testingcf|https://testingcf.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+ghproxy|https://ghproxy.net/https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+gh-proxy|https://gh-proxy.com/https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+gitmirror|https://hub.gitmirror.com/https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+GitHub原生|https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+}"
+RETRY_PER_SRC=2    # 同一个源最多试这么多次，不行就换下一个
 # --------------------------------
 
 if [ -t 1 ]; then
@@ -35,6 +48,7 @@ fi
 step() { printf "${B}==>%s${N} %s\n" "" "$*"; }
 ok()   { printf "${G}[OK]${N} %s\n" "$*"; }
 warn() { printf "${Y}[!]${N} %s\n" "$*"; }
+err()  { printf "${R}[X]${N} %s\n" "$*"; }
 die()  { printf "${R}[X]${N} %s\n" "$*"; exit 1; }
 
 echo ""
@@ -128,31 +142,73 @@ fi
 ok "安装目录：$RETF"
 
 # ---------- 4. 下载脚本 ----------
-step "4/6 从 gcore CDN 下载脚本"
-dl() {  # dl 基础URL 文件名
-    local url="$1/$2" f="$2" i sz
-    for i in 1 2 3; do
-        printf "     ${B}↓ %s${N}（第 %d 次）\n" "$f" "$i"
-        if curl -fL --retry 2 --connect-timeout 15 --max-time 180 -# "$url" -o "$RETF/$f" \
-            && [ -s "$RETF/$f" ]; then
-            sz=$(wc -c < "$RETF/$f" 2>/dev/null | tr -d ' ')
-            printf "     ${G}√ %s 下载完成${N}（%s 字节）\n" "$f" "$sz"
-            return 0
-        fi
-        printf "     ${Y}%s 第 %d 次失败，2 秒后重试...${N}\n" "$f" "$i"
-        sleep 2
+step "4/6 下载脚本（多线路，失败自动切换）"
+
+# 校验下载到的内容是不是真文件：有些镜像会返回 200 但内容是 HTML 错误页
+verify_file() {
+    local f="$1" ext="${1##*.}"
+    [ -s "$f" ] || return 1
+    if head -c 400 "$f" 2>/dev/null | grep -qiE '<!doctype|<html|404 not found|Just a moment'; then
+        return 1
+    fi
+    case "$ext" in
+        sh) head -1 "$f" 2>/dev/null | grep -q '^#!' ;;
+        py) head -c 300 "$f" 2>/dev/null | grep -qE '#!|import |^#|"""' ;;
+        c)  head -c 600 "$f" 2>/dev/null | grep -q '#include' ;;
+        *)  [ "$(wc -c < "$f" 2>/dev/null)" -gt 100 ] ;;
+    esac
+}
+
+# 上次成功用过的源排在最前面（存在 MIRROR 里），省得每次从第一个试起
+src_order() {
+    local line
+    [ -n "${MIRROR:-}" ] && printf '%s\n' "$MIRROR"
+    for line in $SOURCES; do
+        [ "$line" = "${MIRROR:-}" ] && continue
+        printf '%s\n' "$line"
     done
+}
+
+# dl_file <仓库相对路径> <保存到的文件>
+dl_file() {
+    local rel="$1" dst="$2"
+    local name tmpl url try sz
+    while IFS='|' read -r name tmpl; do
+        [ -n "${tmpl:-}" ] || continue
+        url="$(printf '%s' "$tmpl" | sed "s|{p}|$rel|g")"
+        try=1
+        while [ "$try" -le "$RETRY_PER_SRC" ]; do
+            printf "     ${B}↓ %s${N}  %s（第 %d 次）\n" "$(basename "$dst")" "$name" "$try"
+            if curl -fL --connect-timeout 8 --max-time 90 "$url" -o "$dst" 2>/dev/null \
+                && verify_file "$dst"; then
+                sz=$(wc -c < "$dst" 2>/dev/null | tr -d ' ')
+                printf "     ${G}√ %s 下载完成${N}（%s 字节，来自 %s）\n" "$(basename "$dst")" "$sz" "$name"
+                MIRROR="$name|$tmpl"
+                return 0
+            fi
+            try=$((try + 1))
+            [ "$try" -le "$RETRY_PER_SRC" ] && sleep 1
+        done
+        printf "     ${Y}%s 试了 %d 次都不行，换下一个源${N}\n" "$name" "$RETRY_PER_SRC"
+        rm -f "$dst"
+    done < <(src_order)
     return 1
 }
+
 fail=0
 for f in $MAIN_FILES; do
-    dl "$BASE" "$f" || { printf "     ${R}x %s 下载失败${N}\n" "$f"; fail=$((fail+1)); }
+    dl_file "$f" "$RETF/$f" || { printf "     ${R}x %s 所有线路都失败了${N}\n" "$f"; fail=$((fail+1)); }
 done
 for f in $SUB_FILES; do
-    dl "$SUB" "$f" || { printf "     ${R}x %s 下载失败${N}\n" "$f"; fail=$((fail+1)); }
+    dl_file "install/$f" "$RETF/$f" || { printf "     ${R}x %s 所有线路都失败了${N}\n" "$f"; fail=$((fail+1)); }
 done
-[ "$fail" -gt 0 ] && die "有 $fail 个文件下载失败。请检查网络，或确认仓库路径：$BASE"
-ok "7 个文件全部下载完成"
+if [ "$fail" -gt 0 ]; then
+    err "有 $fail 个文件没下载成功，所有线路都试过了"
+    printf "    可以手动兜底：用浏览器打开 GitHub 原生链接，把文件保存到 %s 里\n" "$RETF"
+    printf "    https://github.com/riluo-ya/blog/tree/main/sh/reTF\n"
+    die "安装中止"
+fi
+ok "7 个文件全部下载完成（当前线路：$([ -n "${MIRROR:-}" ] && printf '%s' "${MIRROR%%|*}")）"
 
 # 脚本里写死了 $HOME，替换成真实安装目录，这样放到 /retf 也能照常跑
 for f in scsi_wrap.sh seg_scan.sh; do
@@ -187,6 +243,7 @@ ONLY="jpg,png,heic,avi"
 MINSIZE=50000
 MAXERR=256
 MAXFILEMB=120
+MIRROR="${MIRROR:-}"
 OUTDIR="~/recovered"
 SORTED="~/recovered_已整理"
 TMP="~/retf_tmp"

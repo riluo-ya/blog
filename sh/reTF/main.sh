@@ -25,6 +25,7 @@ ONLY="${ONLY:-jpg,png,heic,avi}"
 MINSIZE="${MINSIZE:-50000}"
 MAXERR="${MAXERR:-256}"
 MAXFILEMB="${MAXFILEMB:-120}"
+MIRROR="${MIRROR:-}"
 OUTDIR="${OUTDIR:-~/recovered}"
 SORTED="${SORTED:-~/recovered_已整理}"
 TMP="${TMP:-~/retf_tmp}"
@@ -67,6 +68,7 @@ ONLY="$ONLY"
 MINSIZE=$MINSIZE
 MAXERR=$MAXERR
 MAXFILEMB=$MAXFILEMB
+MIRROR="$MIRROR"
 OUTDIR="$(to_conf "$OUTDIR")"
 SORTED="$(to_conf "$SORTED")"
 TMP="$(to_conf "$TMP")"
@@ -633,23 +635,71 @@ f_settings() {
 }
 
 # 11. 在线更新：从 CDN 拉取最新脚本
-BASE="${BASE:-https://gcore.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF}"
-SUB="$BASE/install"
+# ---------- 下载源：按优先级排，一个不行就换下一个 ----------
+# 格式："名字|URL模板"，{p} 替换成文件在仓库里的相对路径
+# 顺序：jsDelivr 各节点 → GitHub 代理镜像 → 最后才用 GitHub 原生
+SOURCES="${SOURCES:-
+jsDelivr-gcore|https://gcore.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+jsDelivr-cdn|https://cdn.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+jsDelivr-fastly|https://fastly.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+jsDelivr-testingcf|https://testingcf.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF/{p}
+ghproxy|https://ghproxy.net/https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+gh-proxy|https://gh-proxy.com/https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+gitmirror|https://hub.gitmirror.com/https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+GitHub原生|https://raw.githubusercontent.com/riluo-ya/blog/main/sh/reTF/{p}
+}"
+RETRY_PER_SRC=2    # 同一个源最多试这么多次，不行就换下一个
 MAIN_FILES="main.sh"
 SUB_FILES="scsi_dump.c scsi_wrap.sh seg_scan.sh carve_photos.py rename_by_exif.py generate_fonts_json.py"
 
-dl_to() {  # dl_to <目标文件> <URL>
-    local dst="$1" url="$2" i sz
-    for i in 1 2 3; do
-        if curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 "$url" -o "$dst" 2>/dev/null \
-            && [ -s "$dst" ]; then
-            sz=$(wc -c < "$dst" 2>/dev/null | tr -d ' ')
-            printf "     ${G}√ %s${N}（%s 字节）\n" "$(basename "$dst")" "$sz"
-            return 0
-        fi
-        printf "     ${Y}%s 第 %d 次失败，2 秒后重试...${N}\n" "$(basename "$dst")" "$i"
-        sleep 2
+# 校验下载到的内容是不是真文件：有些镜像会返回 200 但内容是 HTML 错误页
+verify_file() {
+    local f="$1" ext="${1##*.}"
+    [ -s "$f" ] || return 1
+    if head -c 400 "$f" 2>/dev/null | grep -qiE '<!doctype|<html|404 not found|Just a moment'; then
+        return 1
+    fi
+    case "$ext" in
+        sh) head -1 "$f" 2>/dev/null | grep -q '^#!' ;;
+        py) head -c 300 "$f" 2>/dev/null | grep -qE '#!|import |^#|"""' ;;
+        c)  head -c 600 "$f" 2>/dev/null | grep -q '#include' ;;
+        *)  [ "$(wc -c < "$f" 2>/dev/null)" -gt 100 ] ;;
+    esac
+}
+
+# 上次成功用过的源排在最前面（存在 MIRROR 里），省得每次从第一个试起
+src_order() {
+    local line
+    [ -n "${MIRROR:-}" ] && printf '%s\n' "$MIRROR"
+    for line in $SOURCES; do
+        [ "$line" = "${MIRROR:-}" ] && continue
+        printf '%s\n' "$line"
     done
+}
+
+# dl_file <仓库相对路径> <保存到的文件>
+dl_file() {
+    local rel="$1" dst="$2"
+    local name tmpl url try sz
+    while IFS='|' read -r name tmpl; do
+        [ -n "${tmpl:-}" ] || continue
+        url="$(printf '%s' "$tmpl" | sed "s|{p}|$rel|g")"
+        try=1
+        while [ "$try" -le "$RETRY_PER_SRC" ]; do
+            printf "     ${B}↓ %s${N}  %s（第 %d 次）\n" "$rel" "$name" "$try"
+            if curl -fL --connect-timeout 8 --max-time 90 "$url" -o "$dst" 2>/dev/null \
+                && verify_file "$dst"; then
+                sz=$(wc -c < "$dst" 2>/dev/null | tr -d ' ')
+                printf "     ${G}√ %s${N}（%s 字节，来自 %s）\n" "$(basename "$dst")" "$sz" "$name"
+                MIRROR="$name|$tmpl"
+                return 0
+            fi
+            try=$((try + 1))
+            [ "$try" -le "$RETRY_PER_SRC" ] && sleep 1
+        done
+        printf "     ${Y}%s 试了 %d 次都不行，换下一个源${N}\n" "$name" "$RETRY_PER_SRC"
+        rm -f "$dst"
+    done < <(src_order)
     return 1
 }
 
@@ -657,8 +707,11 @@ f_update() {
     hr
     printf "${B}在线更新脚本${N}\n"
     echo ""
-    printf "  会从下面这个地址重新下载全部脚本（不动你的配置和已恢复的照片）：\n"
-    printf "  ${D}%s${N}\n" "$BASE"
+    printf "  会从多个线路依次尝试重新下载全部脚本（不动你的配置和已恢复的照片）：\n"
+    printf "  ${D}jsDelivr 各节点 → GitHub 代理镜像 → GitHub 原生${N}\n"
+    if [ -n "${MIRROR:-}" ]; then
+        printf "  上次成功的线路会优先试：${G}%s${N}\n" "${MIRROR%%|*}"
+    fi
     echo ""
     printf "  将覆盖：main.sh、scsi_dump.c、scsi_wrap.sh、seg_scan.sh\n"
     printf "          carve_photos.py、rename_by_exif.py、generate_fonts_json.py\n"
@@ -678,16 +731,17 @@ f_update() {
     printf "${B}下载中...${N}\n"
     local f fail=0
     for f in $MAIN_FILES; do
-        dl_to "$tmpd/$f" "$BASE/$f" || fail=$((fail+1))
+        dl_file "$f" "$tmpd/$f" || fail=$((fail+1))
     done
     for f in $SUB_FILES; do
-        dl_to "$tmpd/$f" "$SUB/$f" || fail=$((fail+1))
+        dl_file "install/$f" "$tmpd/$f" || fail=$((fail+1))
     done
 
     if [ "$fail" -gt 0 ]; then
         echo ""
         err "有 $fail 个文件下载失败，${Y}已放弃更新，现有脚本没被动过${N}"
-        printf "    可能是 CDN 还没同步最新版本，过几分钟再试；或检查网络\n"
+        printf "    所有线路都试过了。可能是 CDN 还没同步最新版本（过几分钟再试），\n"
+        printf "    也可能是网络不通。\n"
         rm -rf "$tmpd" 2>/dev/null
         return
     fi
