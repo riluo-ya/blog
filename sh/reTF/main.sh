@@ -21,9 +21,10 @@ CONF="$RETF/retf.conf"
 DEVICE="${DEVICE:-}"
 SEG_GB="${SEG_GB:-10}"
 TOTAL_SECTORS="${TOTAL_SECTORS:-0}"
-ONLY="${ONLY:-jpg,png,heic}"
+ONLY="${ONLY:-jpg,png,heic,avi}"
 MINSIZE="${MINSIZE:-50000}"
 MAXERR="${MAXERR:-256}"
+MAXFILEMB="${MAXFILEMB:-120}"
 OUTDIR="${OUTDIR:-~/recovered}"
 SORTED="${SORTED:-~/recovered_已整理}"
 TMP="${TMP:-~/retf_tmp}"
@@ -47,6 +48,14 @@ ok()  { printf "${G}[OK]${N} %s\n" "$*"; }
 warn(){ printf "${Y}[!]${N} %s\n" "$*"; }
 err() { printf "${R}[X]${N} %s\n" "$*"; }
 
+# 绝对路径 -> 配置文件里的写法：在 HOME 下就写成 ~/xxx，否则保持绝对路径
+to_conf() {
+    case "$1" in
+        "$HOME"/*) printf '~/%s' "${1#$HOME/}" ;;
+        *)         printf '%s' "$1" ;;
+    esac
+}
+
 save_conf() {
     cat > "$CONF" <<EOF
 # reTF 配置（main.sh 自动维护，也可手改）
@@ -57,10 +66,11 @@ TOTAL_SECTORS=$TOTAL_SECTORS
 ONLY="$ONLY"
 MINSIZE=$MINSIZE
 MAXERR=$MAXERR
-OUTDIR="~/$(exp "$OUTDIR" | sed "s|^$HOME/||")"
-SORTED="~/$(exp "$SORTED" | sed "s|^$HOME/||")"
-TMP="~/$(exp "$TMP" | sed "s|^$HOME/||")"
-ALBUM="$ALBUM"
+MAXFILEMB=$MAXFILEMB
+OUTDIR="$(to_conf "$OUTDIR")"
+SORTED="$(to_conf "$SORTED")"
+TMP="$(to_conf "$TMP")"
+ALBUM="$(to_conf "$ALBUM")"
 EOF
 }
 
@@ -196,7 +206,9 @@ scan_one_round() {  # scan_one_round <段号>  -> 0 成功 / 1 失败
 
     printf "${B}抠图中...${N} %s\n" "$(date '+%H:%M:%S')"
     python3 "$RETF/carve_photos.py" "$segimg" "$OUTDIR" \
-        --only "$ONLY" --min-size "$MINSIZE" --total "$(( TOTAL_SECTORS * 512 / 1000000000 ))G"
+        --only "$ONLY" --min-size "$MINSIZE" \
+        --max-file-size "${MAXFILEMB}M" \
+        --total "$(( TOTAL_SECTORS * 512 / 1000000000 ))G"
     rm -f "$segimg"
     echo "$((seg+1))" > "$STATE"
     ok "第 $((seg+1)) 段完成 $(date '+%H:%M:%S')"
@@ -207,12 +219,32 @@ scan_one_round() {  # scan_one_round <段号>  -> 0 成功 / 1 失败
 f_rename() {
     hr
     printf "${B}整理照片${N}（按拍摄时间重命名、按年月分子目录、md5 去重）\n"
-    local cnt
+    local cnt picn
     cnt=$(ls -1 "$OUTDIR" 2>/dev/null | wc -l)
     if [ "${cnt:-0}" -eq 0 ]; then warn "待整理目录是空的：$OUTDIR"; return; fi
-    printf "源目录：$OUTDIR（%s 个文件）\n目标：$SORTED\n" "$cnt"
     mkdir -p "$SORTED"
-    python3 "$RETF/rename_by_exif.py" "$OUTDIR" "$SORTED" --min-size "$MINSIZE"
+
+    # rename_by_exif.py 只认图片，所以先数一下有没有图片，没有就别调它（会报错退出）
+    picn=$(ls -1 "$OUTDIR" 2>/dev/null | grep -icE '\.(jpg|jpeg|png|heic)$')
+    if [ "${picn:-0}" -gt 0 ]; then
+        printf "整理照片：$picn 个图片  ->  $SORTED\n"
+        python3 "$RETF/rename_by_exif.py" "$OUTDIR" "$SORTED" --min-size "$MINSIZE"
+    else
+        printf "    这轮没有抠到图片（可能只有视频）\n"
+    fi
+
+    # 视频/音频：它没被图片整理脚本带走，单独归到一个目录
+    local vd="$SORTED/视频" vn=0 f
+    for f in "$OUTDIR"/*.avi "$OUTDIR"/*.wav "$OUTDIR"/*.mp4 "$OUTDIR"/*.mov; do
+        [ -e "$f" ] || continue
+        mkdir -p "$vd" 2>/dev/null
+        if mv -f "$f" "$vd/" 2>/dev/null; then vn=$((vn+1)); fi
+    done
+    if [ "$vn" -gt 0 ]; then
+        ok "视频/音频 $vn 个  ->  $vd"
+        printf "    ${D}（没有拍摄时间可依，保持原文件名；放不进相册目录的话用文件管理器看）${N}\n"
+    fi
+
     hr
     printf "整理后：${G}%s${N} 个文件  ->  %s\n" "$(find "$SORTED" -type f 2>/dev/null | wc -l)" "$SORTED"
 }
@@ -272,7 +304,11 @@ f_scan() {
     local total_segs=$(( (TOTAL_SECTORS + SEG_GB*SECTORS_PER_GB - 1) / (SEG_GB*SECTORS_PER_GB) ))
     printf "\n卡总容量：%d 扇区（约 %d GB）  每段 %dGB   共 %d 段\n" \
         "$TOTAL_SECTORS" "$((TOTAL_SECTORS / SECTORS_PER_GB))" "$SEG_GB" "$total_segs"
-    printf "照片输出：$OUTDIR   整理后：$SORTED\n"
+    printf "抠图类型：$ONLY\n"
+    case "$ONLY" in
+        *avi*|*wav*) printf "视频大小上限：%sMB（超过的直接跳过，可在菜单 10 里改）\n" "$MAXFILEMB";;
+    esac
+    printf "输出：$OUTDIR   整理后：$SORTED\n"
     printf "临时镜像：$TMP（每轮抠完自动删，峰值占用约 %dGB）\n" "$SEG_GB"
     hr
     printf "确认开始？[1=开始 0=返回菜单]（默认 1）："
@@ -320,13 +356,62 @@ f_scan() {
     printf "${G}扫描流程结束${N}\n"
     printf "  已整理照片：%s 张  ->  %s\n" "$(find "$SORTED" -type f 2>/dev/null | wc -l)" "$SORTED"
     printf "  进度已保存，下次选菜单 5 会自动接着扫\n"
+    printf "  手机空间紧张的话，去菜单 ${B}8${N} 清理临时缓存\n"
     hr
+}
+
+# 选择导出目标目录：可自定义，选完写进配置
+pick_album() {
+    hr
+    printf "${B}照片导出到哪个目录？${N}\n"
+    echo "  1  系统相册（相机目录）—— $ALBUM"
+    echo "  2  系统相册下新建一个文件夹，比如 reTF已恢复"
+    echo "  3  自己输入一个路径（比如 /storage/emulated/0/DCIM/我的照片、~/Pictures 等）"
+    echo "  0  取消"
+    hr
+    printf "请输入数字（默认 1）："
+    read -r c
+    local v
+    case "${c:-1}" in
+        1) : ;;
+        2)
+            printf "    文件夹名（默认 reTF已恢复）："
+            read -r v
+            v="${v:-reTF已恢复}"
+            ALBUM="/storage/emulated/0/DCIM/$v"
+            ;;
+        3)
+            printf "    请输入完整路径（支持 ~/ 开头）：\n    "
+            read -r v
+            [ -z "${v:-}" ] && { warn "没输入路径，保持原样：$ALBUM"; return; }
+            ALBUM="$(exp "$v")"
+            ;;
+        0) return 1 ;;
+        *) warn "看不懂，保持原样：$ALBUM" ;;
+    esac
+
+    # 目录不存在就问要不要建
+    if [ ! -d "$ALBUM" ]; then
+        printf "    目录还不存在，现在创建？[1=创建 0=返回]（默认 1）："
+        read -r m
+        [ "${m:-1}" = "1" ] || { warn "已取消"; return 1; }
+        mkdir -p "$ALBUM" 2>/dev/null \
+            || { err "创建失败：$ALBUM（外部存储没授权就执行 termux-setup-storage）"; return 1; }
+        ok "已创建：$ALBUM"
+    fi
+    if [ ! -w "$ALBUM" ]; then
+        err "这个目录不可写：$ALBUM（换一个，或先执行 termux-setup-storage）"
+        return 1
+    fi
+    save_conf
+    ok "导出目录已设为：$ALBUM（已记住，下次默认用它）"
+    return 0
 }
 
 # 6. 移动到相册
 f_to_album() {
     hr
-    printf "${B}把照片移动到手机相册${N}\n"
+    printf "${B}把照片导出到相册${N}\n"
     local cnt
     cnt=$(find "$SORTED" -type f 2>/dev/null | wc -l)
     if [ "${cnt:-0}" -eq 0 ]; then
@@ -334,9 +419,18 @@ f_to_album() {
         printf "    去菜单 5 扫描，或菜单 6 先整理一次\n"
         return
     fi
-    printf "源：$SORTED（%s 张）\n目标：$ALBUM\n" "$cnt"
+    printf "源：$SORTED（%s 张）\n" "$cnt"
+    printf "当前导出目录：$ALBUM\n"
     hr
-    printf "注意：移动后照片会出现在系统相册里。确认？[1=移动 0=取消]（默认 1）："
+    printf "要用这个目录吗？[1=就用它 2=换个目录 0=取消]（默认 1）："
+    read -r c
+    case "${c:-1}" in
+        1) : ;;
+        2) pick_album || { warn "已取消导出"; return; } ;;
+        *) warn "已取消"; return ;;
+    esac
+
+    printf "\n确认把 %s 张照片放到 $ALBUM ？[1=确认 0=取消]（默认 1）：" "$cnt"
     read -r c
     [ "${c:-1}" = "1" ] || { warn "已取消"; return; }
 
@@ -361,7 +455,10 @@ f_to_album() {
         termux-media-scan -r "$ALBUM" >/dev/null 2>&1
         ok "已通知系统刷新相册"
     }
-    printf "现在打开手机自带的相册 App 就能看到了（一般在「Camera」相册）\n"
+    hr
+    printf "${G}导出完成${N}  %s 张  ->  %s\n" "$cnt" "$ALBUM"
+    printf "    如果这个目录在系统相册范围内，打开相册 App 就能看到；\n"
+    printf "    否则用文件管理器去上面这个路径查看。\n"
 }
 
 # 7. 查看结果
@@ -383,7 +480,119 @@ f_view() {
     esac
 }
 
-# 8. 设置
+# 计算某个目录/文件组的占用（不存在就显示 0B）
+size_of() {
+    local p="$1"
+    [ -e "$p" ] || { printf '0B'; return; }
+    du -sh "$p" 2>/dev/null | cut -f1
+}
+
+# 删之前再确认一次
+confirm_del() {
+    printf "    ${Y}确认删除？删了就找不回来了 [1=删 0=算了]（默认 0）：${N}"
+    read -r c
+    [ "${c:-0}" = "1" ]
+}
+
+# 8. 清理缓存 / 删除临时文件
+f_clean() {
+    while : ; do
+        hr
+        printf "${B}清理缓存与临时文件${N}\n"
+        echo ""
+        printf "  ${B}1${N}  临时镜像缓存  seg_*.img      占用 ${Y}%s${N}\n" "$(find "$TMP" -maxdepth 1 -name 'seg_*.img' 2>/dev/null | wc -l) 个文件 / $(size_of "$TMP")"
+        printf "      ${D}（扫描中途留下的半成品镜像，每轮 10G 那种；已抠完图的段删了不影响照片）${N}\n"
+        echo ""
+        printf "  ${B}2${N}  扫描进度记录                  $([ -f "$STATE" ] && printf '已扫 %s 段' "$(cat "$STATE")" || printf '无')"
+        printf "      ${D}（删掉 = 下次从第 1 段重新开始）${N}\n"
+        echo ""
+        printf "  ${B}3${N}  未整理的原始文件  $OUTDIR\n"
+        printf "      ${D}%s 个 / %s（编号命名的原始文件，整理完就没用了）${N}\n" "$(ls -1 "$OUTDIR" 2>/dev/null | wc -l)" "$(size_of "$OUTDIR")"
+        echo ""
+        printf "  ${B}4${N}  已整理照片（原始副本）  $SORTED\n"
+        printf "      ${D}%s 张 / %s（${Y}注意：确认已经导出到相册再删${N}${D}）${N}\n" "$(find "$SORTED" -type f 2>/dev/null | wc -l)" "$(size_of "$SORTED")"
+        echo ""
+        printf "  ${B}5${N}  一键清空全部（临时镜像 + 进度 + 两个照片目录）\n"
+        printf "      ${D}（回到刚装好的状态，脚本本身不会被删）${N}\n"
+        echo ""
+        printf "  ${B}0${N}  返回主菜单\n"
+        hr
+        printf "当前可用空间：%s\n" "$(df -h "$HOME" 2>/dev/null | tail -1)"
+        printf "请输入数字："
+        read -r c
+        case "${c:-0}" in
+            1)
+                hr
+                if [ -z "$(find "$TMP" -maxdepth 1 -name 'seg_*.img' 2>/dev/null)" ]; then
+                    warn "没有临时镜像，不用清理"
+                    continue
+                fi
+                printf "将删除：$TMP/seg_*.img\n"
+                if confirm_del; then
+                    find "$TMP" -maxdepth 1 -name 'seg_*.img' -exec rm -f {} + 2>/dev/null
+                    find "$TMP" -maxdepth 1 -name 'state_*.json' -exec rm -f {} + 2>/dev/null
+                    ok "临时镜像已清理，剩余占用：$(size_of "$TMP")"
+                else
+                    warn "已取消"
+                fi
+                ;;
+            2)
+                hr
+                if [ ! -f "$STATE" ]; then warn "没有进度记录，不用清理"; continue; fi
+                printf "将清空扫描进度（当前已扫 %s 段）\n" "$(cat "$STATE")"
+                if confirm_del; then
+                    rm -f "$STATE"
+                    ok "进度已清空，下次从第 1 段开始"
+                else
+                    warn "已取消"
+                fi
+                ;;
+            3)
+                hr
+                if [ -z "$(ls -A "$OUTDIR" 2>/dev/null)" ]; then warn "目录是空的，不用清理"; continue; fi
+                printf "将删除整个目录：$OUTDIR\n"
+                if confirm_del; then
+                    find "$OUTDIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+                    ok "已清理：$OUTDIR"
+                else
+                    warn "已取消"
+                fi
+                ;;
+            4)
+                hr
+                if [ -z "$(ls -A "$SORTED" 2>/dev/null)" ]; then warn "目录是空的，不用清理"; continue; fi
+                warn "删掉后照片就只剩相册里的那份了，确认已经导出再删！"
+                printf "将删除整个目录：$SORTED\n"
+                if confirm_del; then
+                    find "$SORTED" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+                    ok "已清理：$SORTED"
+                else
+                    warn "已取消"
+                fi
+                ;;
+            5)
+                hr
+                warn "这会删掉：临时镜像 + 扫描进度 + 未整理文件 + 已整理照片"
+                warn "但不会删除脚本本身，也不会动你已导出到相册的照片"
+                printf "确定要全部清空吗？[1=全部清空 0=算了]（默认 0）："
+                read -r c
+                if [ "${c:-0}" = "1" ]; then
+                    find "$TMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+                    find "$OUTDIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+                    find "$SORTED" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+                    ok "全部清理完成，当前可用空间：$(df -h "$HOME" 2>/dev/null | tail -1)"
+                else
+                    warn "已取消"
+                fi
+                ;;
+            0) return;;
+            *) warn "看不懂，请输入菜单里的数字";;
+        esac
+        echo ""
+    done
+}
+
+# 9. 设置
 f_settings() {
     while : ; do
         hr
@@ -394,10 +603,11 @@ f_settings() {
         echo "  4  抠图类型           ：$ONLY"
         echo "  5  最小文件大小(字节) ：$MINSIZE"
         echo "  6  连续失败上限       ：$MAXERR"
-        echo "  7  照片输出目录       ：$OUTDIR"
-        echo "  8  整理后目录         ：$SORTED"
-        echo "  9  相册目录           ：$ALBUM"
-        echo "  10 清空扫描进度（重新开始）"
+        echo "  7  视频大小上限(MB)   ：$MAXFILEMB（avi/wav 用，手机内存小就调低）"
+        echo "  8  照片输出目录       ：$OUTDIR"
+        echo "  9  整理后目录         ：$SORTED"
+        echo "  10 相册 / 导出目录    ：$ALBUM"
+        echo "  11 清空扫描进度（重新开始）"
         echo "  0  返回主菜单"
         hr
         printf "请输入数字："
@@ -406,19 +616,124 @@ f_settings() {
             1) printf "设备路径（留空=自动探测）："; read -r v; DEVICE="${v:-}";;
             2) printf "GB 数："; read -r v; case "${v:-}" in ''|*[!0-9]*) :;; *) SEG_GB="$v";; esac;;
             3) printf "总扇区数："; read -r v; case "${v:-}" in ''|*[!0-9]*) :;; *) TOTAL_SECTORS="$v";; esac;;
-            4) printf "类型（逗号分隔，如 jpg,png,heic,mp4）："; read -r v; [ -n "${v:-}" ] && ONLY="$v";;
+            4) printf "类型（jpg,png,heic,avi,wav,mp4,mov，逗号分隔）："; read -r v; [ -n "${v:-}" ] && ONLY="$v";;
             5) printf "最小字节："; read -r v; case "${v:-}" in ''|*[!0-9]*) :;; *) MINSIZE="$v";; esac;;
             6) printf "失败上限："; read -r v; case "${v:-}" in ''|*[!0-9]*) :;; *) MAXERR="$v";; esac;;
-            7) printf "输出目录："; read -r v; [ -n "${v:-}" ] && OUTDIR="$(exp "$v")";;
-            8) printf "整理目录："; read -r v; [ -n "${v:-}" ] && SORTED="$(exp "$v")";;
-            9) printf "相册目录："; read -r v; [ -n "${v:-}" ] && ALBUM="$v";;
-            10) rm -f "$STATE"; rm -f "$TMP"/seg_*.img; warn "扫描进度已清空，下次从第 1 段开始";;
+            7) printf "视频大小上限 MB（默认 120，手机内存 <4G 建议 50）："; read -r v; case "${v:-}" in ''|*[!0-9]*) :;; *) MAXFILEMB="$v";; esac;;
+            8) printf "输出目录："; read -r v; [ -n "${v:-}" ] && OUTDIR="$(exp "$v")";;
+            9) printf "整理目录："; read -r v; [ -n "${v:-}" ] && SORTED="$(exp "$v")";;
+            10) pick_album;;
+            11) rm -f "$STATE"; rm -f "$TMP"/seg_*.img; warn "扫描进度已清空，下次从第 1 段开始";;
             0) break;;
             *) :;;
         esac
         mkdir -p "$TMP" "$OUTDIR" 2>/dev/null
         save_conf
     done
+}
+
+# 11. 在线更新：从 CDN 拉取最新脚本
+BASE="${BASE:-https://gcore.jsdelivr.net/gh/riluo-ya/blog@main/sh/reTF}"
+SUB="$BASE/install"
+MAIN_FILES="main.sh"
+SUB_FILES="scsi_dump.c scsi_wrap.sh seg_scan.sh carve_photos.py rename_by_exif.py generate_fonts_json.py"
+
+dl_to() {  # dl_to <目标文件> <URL>
+    local dst="$1" url="$2" i sz
+    for i in 1 2 3; do
+        if curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 "$url" -o "$dst" 2>/dev/null \
+            && [ -s "$dst" ]; then
+            sz=$(wc -c < "$dst" 2>/dev/null | tr -d ' ')
+            printf "     ${G}√ %s${N}（%s 字节）\n" "$(basename "$dst")" "$sz"
+            return 0
+        fi
+        printf "     ${Y}%s 第 %d 次失败，2 秒后重试...${N}\n" "$(basename "$dst")" "$i"
+        sleep 2
+    done
+    return 1
+}
+
+f_update() {
+    hr
+    printf "${B}在线更新脚本${N}\n"
+    echo ""
+    printf "  会从下面这个地址重新下载全部脚本（不动你的配置和已恢复的照片）：\n"
+    printf "  ${D}%s${N}\n" "$BASE"
+    echo ""
+    printf "  将覆盖：main.sh、scsi_dump.c、scsi_wrap.sh、seg_scan.sh\n"
+    printf "          carve_photos.py、rename_by_exif.py、generate_fonts_json.py\n"
+    printf "  保留：${G}retf.conf 配置、扫描进度、已恢复的照片${N}\n"
+    printf "  ${Y}注意：正在扫描时别更新，先停下来再更新${N}\n"
+    hr
+    printf "确认开始更新？[1=更新 0=返回]（默认 1）："
+    read -r c
+    [ "${c:-1}" = "1" ] || { warn "已取消"; return; }
+
+    command -v curl >/dev/null 2>&1 || { err "curl 不存在，先 pkg install curl"; return; }
+
+    local tmpd="$TMP/update.$$"
+    mkdir -p "$tmpd" 2>/dev/null || { err "临时目录创建失败：$tmpd"; return; }
+
+    echo ""
+    printf "${B}下载中...${N}\n"
+    local f fail=0
+    for f in $MAIN_FILES; do
+        dl_to "$tmpd/$f" "$BASE/$f" || fail=$((fail+1))
+    done
+    for f in $SUB_FILES; do
+        dl_to "$tmpd/$f" "$SUB/$f" || fail=$((fail+1))
+    done
+
+    if [ "$fail" -gt 0 ]; then
+        echo ""
+        err "有 $fail 个文件下载失败，${Y}已放弃更新，现有脚本没被动过${N}"
+        printf "    可能是 CDN 还没同步最新版本，过几分钟再试；或检查网络\n"
+        rm -rf "$tmpd" 2>/dev/null
+        return
+    fi
+
+    # 下载全成功才覆盖，避免下到一半把脚本弄坏
+    echo ""
+    printf "${B}安装到 %s ...${N}\n" "$RETF"
+    for f in $MAIN_FILES $SUB_FILES; do
+        cp -f "$tmpd/$f" "$RETF/$f" 2>/dev/null \
+            && printf "     ${G}√${N} %s 已更新\n" "$f" \
+            || { printf "     ${R}x %s 写入失败${N}\n" "$f"; fail=$((fail+1)); }
+    done
+
+    # 和 install.sh 一样，把写死的 $HOME 换成安装目录
+    for f in scsi_wrap.sh seg_scan.sh; do
+        [ -f "$RETF/$f" ] && sed -i "s|[\$]HOME|$RETF|g" "$RETF/$f" 2>/dev/null
+    done
+    chmod +x "$RETF"/*.sh "$RETF"/*.py 2>/dev/null
+    rm -rf "$tmpd" 2>/dev/null
+
+    # 源码变了就重新编译
+    echo ""
+    if [ -f "$RETF/scsi_dump.c" ] && command -v clang >/dev/null 2>&1; then
+        printf "重新编译 scsi_dump ...\n"
+        if clang -O2 -o "$RETF/scsi_dump" "$RETF/scsi_dump.c" -lusb-1.0 2>"$TMP/compile.log"; then
+            ok "scsi_dump 编译完成"
+        else
+            err "编译失败，日志："
+            tail -15 "$TMP/compile.log" 2>/dev/null
+            warn "老版本 scsi_dump 可能还在，可用；或重新运行 install.sh"
+        fi
+    fi
+
+    save_conf
+    hr
+    if [ "$fail" -eq 0 ]; then
+        printf "${G}更新完成！${N}\n"
+        printf "  配置已保留，扫描进度没动。${Y}请退出后重新运行 main.sh 生效${N}\n"
+        printf "  重新运行：${B}cd %s && bash main.sh${N}\n" "$RETF"
+    else
+        printf "${Y}部分文件写入失败，建议重新运行 install.sh${N}\n"
+    fi
+    hr
+    printf "现在退出？[1=退出 0=留在菜单]（默认 1）："
+    read -r c
+    [ "${c:-1}" = "1" ] && exit 0
 }
 
 # 0. 环境自检
@@ -435,6 +750,7 @@ f_check() {
     done
     [ -d /storage/emulated/0 ] && ok "存储可访问" || err "存储不可访问，执行 termux-setup-storage 授权"
     hr
+    printf "    缺文件的话，用菜单 ${B}11${N} 在线更新可以补齐\n"
 }
 
 # =====================================================================
@@ -454,9 +770,11 @@ show_menu() {
     echo "  4  环境自检"
     echo "  5  开始 / 继续扫描照片    ★ 主要用这个"
     echo "  6  整理照片（按拍摄时间重命名）"
-    echo "  7  把照片移动到手机相册"
-    echo "  8  查看进度"
-    echo "  9  参数设置"
+    echo "  7  导出照片到相册 / 自定义目录"
+    echo "  8  清理缓存与临时文件    ★ 腾空间用这个"
+    echo "  9  查看进度"
+    echo "  10 参数设置（含导出目录、每轮大小等）"
+    echo "  11 在线更新脚本"
     echo "  0  退出"
     hr
     printf "请输入数字："
@@ -473,8 +791,10 @@ while : ; do
         5) f_scan;;
         6) f_rename;;
         7) f_to_album;;
-        8) f_view;;
-        9) f_settings;;
+        8) f_clean;;
+        9) f_view;;
+        10) f_settings;;
+        11) f_update;;
         0) echo "已退出。下次运行：cd $RETF && bash main.sh"; exit 0;;
         *) warn "看不懂，请输入菜单里的数字";;
     esac

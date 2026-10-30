@@ -24,10 +24,20 @@ carve_photos.py —— 从 TF 卡 / 磁盘镜像里"抠"出照片（file carving
 参数：
     source       块设备（/dev/block/mmcblk1）或镜像文件（sdcard.img）
     outdir       输出目录，绝对不能是源卡本身
-    --only       类型，逗号分隔：jpg,png,heic,mp4,mov（默认 jpg,png,heic）
+    --only       类型，逗号分隔：jpg,png,heic,mp4,mov,avi,wav（默认 jpg,png,heic,avi）
     --min-size   小于该字节数的丢弃（默认 8192；想要原图建议 50000~100000）
     --limit      只扫前 N 字节，支持 K/M/G/T 后缀
     --resume     断点续扫状态文件（默认 outdir/.carve_state.json）
+    --max-file-size  单个 avi/wav 的大小上限，支持 K/M/G（默认 120M）
+                 视频动辄几百 MB，手机内存有限，超过上限的直接跳过不恢复
+
+AVI / WAV 说明：
+  - 两者都是 RIFF 容器：'RIFF' + 4字节LE长度 + 4字节类型，长度就写在头部，
+    不用像 JPEG 那样逐字节找结尾，判定边界很快
+  - 但删过的卡上长度字段可能本身是脏的，所以加了校验：类型必须是 'AVI '/'WAVE'，
+    AVI 后面要跟一个正常的块头，长度不能离谱
+  - 单个 AVI 越大越容易跨过扫描段边界（默认 10GB 一段）被截断，真要救长视频
+    就把每段调大；不过有 120M 上限挡着，实际影响有限
 """
 
 import argparse
@@ -50,6 +60,7 @@ SIGNATURES = [
     (b"\x00\x00\x00\x18ftypisom", "mp4"),
     (b"\x00\x00\x00\x18ftypmp42", "mp4"),
     (b"\x00\x00\x00\x1cftypqt  ", "mov"),
+    (b"RIFF", "avi"),      # AVI / WAV 共用 RIFF 容器，具体是哪一种在 RiffParser 里区分
 ]
 PNG_END = b"IEND\xaeB`\x82"
 
@@ -187,18 +198,70 @@ class PngParser:
         return None
 
 
-def make_parser(kind, start_abs):
+# ---------------- RIFF (AVI / WAV) 解析 ----------------
+RIFF_TYPES = (b"AVI ", b"WAVE")
+AVI_NEXT_OK = (b"LIST", b"JUNK", b"idx1", b"RIFF", b"AVIX", b"movi")
+
+
+class RiffParser:
+    """RIFF 容器：'RIFF' + 4字节LE长度(不含前8字节) + 4字节类型。
+    长度写在头部，所以能一步算出文件结尾，不用攒数据慢慢找。"""
+
+    def __init__(self, start_abs, max_span=120 * 1024 * 1024):
+        self.start = start_abs
+        self.max_span = max_span
+        self.span_limit = max_span          # 主流程据此决定攒到多大就放弃
+        self.kind = "avi"                   # 读到类型后改成 avi / wav
+
+    def feed(self, buf, base, limit_abs):
+        rel = self.start - base
+        if rel < 0:
+            return -1
+        if rel + 12 > len(buf):
+            return None                     # 头部还没读全，等数据
+
+        if bytes(buf[rel:rel + 4]) != b"RIFF":
+            return -1
+        ftype = bytes(buf[rel + 8:rel + 12])
+        if ftype not in RIFF_TYPES:
+            return -1                       # 不是 AVI / WAV
+        self.kind = "wav" if ftype == b"WAVE" else "avi"
+
+        size = int.from_bytes(buf[rel + 4:rel + 8], "little")
+        if size < 24:
+            return -1                       # 太小，不可能是真文件
+
+        end = self.start + 8 + size
+        if end - self.start > self.max_span:
+            return -1                       # 超过上限：直接放弃，别把内存吃光
+
+        # AVI 头后面紧跟的应该是个正常块头，否则多半是误报
+        if ftype == b"AVI " and rel + 16 <= len(buf):
+            if bytes(buf[rel + 12:rel + 16]) not in AVI_NEXT_OK:
+                return -1
+
+        if end > limit_abs:
+            return None                     # 结尾还没读到，等更多数据
+        return end
+
+
+def make_parser(kind, start_abs, max_span=120 * 1024 * 1024):
     if kind == "jpg":
         return JpegParser(start_abs)
     if kind == "png":
         return PngParser(start_abs)
+    if kind in ("avi", "wav"):
+        return RiffParser(start_abs, max_span)
     return BoxParser(start_abs)
 
 
 # ---------------- 主流程 ----------------
-def carve(src, outdir, only, min_size, limit, state_path, total_hint=None):
+def carve(src, outdir, only, min_size, limit, state_path, total_hint=None,
+          max_file_size=120 * 1024 * 1024):
     os.makedirs(outdir, exist_ok=True)
     sigs = [s for s in SIGNATURES if s[1] in only]
+    # 视频动辄上百 MB，给 RIFF 单独放宽"攒数据"的上限，其余类型仍用 ABANDON
+    max_span = max(max_file_size, ABANDON) if ("avi" in only or "wav" in only) else ABANDON
 
     stream = (src == "-" or src == "/dev/stdin")
     if stream:
@@ -280,7 +343,7 @@ def carve(src, outdir, only, min_size, limit, state_path, total_hint=None):
     cur = None
     if state["kind"]:
         cur = {"kind": state["kind"], "start": state["start"],
-               "parser": make_parser(state["kind"], state["start"])}
+               "parser": make_parser(state["kind"], state["start"], max_span)}
         scan_abs = max(state["start"], base)
 
     last_report = 0
@@ -342,12 +405,13 @@ def carve(src, outdir, only, min_size, limit, state_path, total_hint=None):
                     break
                 j, k, slen = best
                 st_abs = base + j
-                cur = {"kind": k, "start": st_abs, "parser": make_parser(k, st_abs)}
+                cur = {"kind": k, "start": st_abs,
+                       "parser": make_parser(k, st_abs, max_span)}
                 continue
 
             r = cur["parser"].feed(buf, base, eff_end)
             if r is None:                                   # 数据不够，等下一块
-                if eff_end - cur["start"] > ABANDON:
+                if eff_end - cur["start"] > getattr(cur["parser"], "span_limit", ABANDON):
                     scan_abs = cur["start"] + 3
                     cur = None
                     continue
@@ -358,7 +422,8 @@ def carve(src, outdir, only, min_size, limit, state_path, total_hint=None):
                 continue
             # 成功收尾
             rel = cur["start"] - base
-            save(bytes(buf[rel:r - base]), cur["kind"], cur["start"])
+            kind = getattr(cur["parser"], "kind", cur["kind"])
+            save(bytes(buf[rel:r - base]), kind, cur["start"])
             scan_abs = r
             cur = None
             continue
@@ -407,11 +472,14 @@ def main():
     ap = argparse.ArgumentParser(description="流式 file carving，从 TF 卡或镜像恢复照片")
     ap.add_argument("source", help="块设备 /dev/block/mmcblk1、镜像 sdcard.img，或 - 表示 stdin 管道")
     ap.add_argument("outdir", help="输出目录（绝不能是源卡本身）")
-    ap.add_argument("--only", default="jpg,png,heic", help="类型，默认 jpg,png,heic")
+    ap.add_argument("--only", default="jpg,png,heic,avi",
+                    help="类型，逗号分隔：jpg,png,heic,mp4,mov,avi,wav（默认 jpg,png,heic,avi）")
     ap.add_argument("--min-size", type=int, default=8192, help="最小字节数，默认 8192")
     ap.add_argument("--limit", default=None, help="只扫前 N，如 2G")
     ap.add_argument("--total", default=None, help="源总大小（仅用于显示进度百分比），如 500G")
     ap.add_argument("--state", default=None, help="续扫状态文件路径")
+    ap.add_argument("--max-file-size", default=None,
+                    help="单个 avi/wav 的大小上限，支持 K/M/G 后缀（默认 120M）")
     args = ap.parse_args()
 
     only = set(x.strip() for x in args.only.split(",") if x.strip())
@@ -423,7 +491,11 @@ def main():
         sys.exit(f"源不存在：{args.source}")
 
     total_hint = parse_size(args.total) if args.total else None
-    carve(args.source, outdir, only, args.min_size, limit, state_path, total_hint)
+    max_file_size = parse_size(args.max_file_size) if args.max_file_size else 120 * 1024 * 1024
+    if ("avi" in only or "wav" in only):
+        print(f"视频/音频模式：单个文件上限 {human(max_file_size)}，更大的会跳过")
+    carve(args.source, outdir, only, args.min_size, limit, state_path, total_hint,
+          max_file_size)
 
 
 if __name__ == "__main__":

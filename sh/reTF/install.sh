@@ -183,9 +183,10 @@ RETF="$RETF"
 DEVICE=""
 SEG_GB=10
 TOTAL_SECTORS=0
-ONLY="jpg,png,heic"
+ONLY="jpg,png,heic,avi"
 MINSIZE=50000
 MAXERR=256
+MAXFILEMB=120
 OUTDIR="~/recovered"
 SORTED="~/recovered_已整理"
 TMP="~/retf_tmp"
@@ -211,6 +212,9 @@ echo "  开始之前请确认："
 echo "    ① Termux:API App 已装好并允许后台运行"
 echo "    ② 手机 OTG 开关已打开（小米默认关、10 分钟自动关）"
 echo "    ③ 读卡器 + TF 卡已插好，且不要再往卡里写任何东西"
+echo ""
+echo "  以后想更新脚本：进 main.sh 选菜单 11（在线更新）"
+echo "  不用再跑本安装脚本，配置和已恢复的照片都会保留"
 echo ""
 printf "${B}马上进入 $RETF 并启动 main.sh ...${N}\n"
 sleep 1
