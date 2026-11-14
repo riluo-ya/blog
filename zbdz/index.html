@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>周边定制 · 商品目录</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <h1>周边定制 · 商品目录</h1>
+        <p class="subtitle" id="subtitle">数据加载中…</p>
+      </div>
+      <div class="search-box">
+        <input type="search" id="search" placeholder="搜索商品名称…" autocomplete="off" />
+      </div>
+    </div>
+  </header>
+
+  <nav class="filter-bar">
+    <div class="chips lv1-chips" id="lv1Chips"></div>
+    <div class="chips lv2-chips" id="lv2Chips"></div>
+  </nav>
+
+  <main class="container">
+    <div class="result-meta" id="resultMeta"></div>
+    <section class="grid" id="grid"></section>
+    <div class="empty" id="empty" hidden>没有匹配的商品</div>
+  </main>
+
+  <footer class="site-footer">
+    <p>本页面为手动整理的商品目录，图片与价价格仅供参考；价格以实际下单为准。</p>
+  </footer>
+
+  <!-- 商品详情弹窗 -->
+  <div class="modal-mask" id="modalMask" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="modalClose" aria-label="关闭">×</button>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
