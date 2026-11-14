@@ -11,6 +11,8 @@
  *    否则退回商品名文字块。「自定义亚克力」的原图是带品牌 logo 的宣传图，
  *    现已改为不含品牌名的文字版。
  *  - 首屏 48 件 + 「加载更多」，避免一次请求 552 张图。
+ *  - 第一次打开页面（fetch 数据期间）显示骨架卡片 + 转圈，数据就绪后
+ *    骨架淡出、真实卡片依次进场，不会先白屏再突然冒出内容。
  *
  * 只需维护下面几个配置项，其余不用动。
  */
@@ -22,6 +24,7 @@
   var PAGE_SIZE = 48;
   var IMG_W = 600, IMG_H = 600;
 
+  var bootStart = Date.now();    // 首屏加载动画至少显示这么久，避免本地秒开时一闪而过
   var DATA = null;
   var state = { lv1: "全部", lv2: "全部", query: "" };
   var shown = PAGE_SIZE;
@@ -225,6 +228,7 @@
 
   /* ---------- 列表：增量分页渲染 ---------- */
   function renderGrid(reset) {
+    if (!DATA) return;              // 数据还没到，骨架屏仍在，不要动真实列表
     var list = filtered();
     if (reset) {
       shown = PAGE_SIZE;
@@ -261,7 +265,29 @@
     }
   }
 
+  /* ---------- 首屏加载动画 ----------
+     页面一打开就显示骨架卡片 + 转圈，数据就绪后：
+     骨架淡出 → 移除 → 真实分类/卡片以 cardIn 依次进场。
+     本地秒开时至少展示 380ms，避免动画一闪而过。 */
+  function hideBoot(afterShow) {
+    var wait = Math.max(0, 380 - (Date.now() - bootStart));
+    setTimeout(function () {
+      document.body.classList.add("boot-done");
+      setTimeout(function () {
+        Array.prototype.forEach.call(document.querySelectorAll(".boot-piece"), function (el) {
+          el.remove();
+        });
+        ["realFilters", "realContent"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.hidden = false;
+        });
+        if (afterShow) afterShow();
+      }, 300);
+    }, wait);
+  }
+
   function renderAll() {
+    if (!DATA) return;
     renderLv1();
     renderLv2();
     renderGrid(true);
@@ -289,10 +315,13 @@
     DATA = data;
     document.getElementById("subtitle").textContent =
       "当前 · 共 " + DATA.count + " 件商品";
-    renderAll();
+    hideBoot(function () { renderAll(); });
   }).catch(function (e) {
-    grid.innerHTML = "";
-    empty.hidden = false;
-    empty.textContent = "数据加载失败：" + e.message + "。请通过本地静态服务或部署到网页后访问（浏览器直接双击打开本地文件时，会禁止读取 products.json）。";
+    document.getElementById("subtitle").textContent = "数据加载失败";
+    hideBoot(function () {
+      grid.innerHTML = "";
+      empty.hidden = false;
+      empty.textContent = "数据加载失败：" + e.message + "。请通过本地静态服务或部署到网页后访问（浏览器直接双击打开本地文件时，会禁止读取 products.json）。";
+    });
   });
 })();

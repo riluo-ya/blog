@@ -341,6 +341,53 @@ body {
   text-align: center;
 }
 
+/* ---------- 首屏加载骨架：数据就绪前不出现空白 ---------- */
+#realFilters[hidden], #realContent[hidden] { display: none; }
+
+.boot-piece { transition: opacity .3s ease, transform .3s ease; }
+body.boot-done .boot-piece { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+
+.boot-bar {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 8px 0 18px; font-size: 13px; color: var(--text-sub);
+}
+.boot-spin {
+  width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--accent-soft); border-top-color: var(--accent);
+  animation: bootSpin .8s linear infinite;
+}
+@keyframes bootSpin { to { transform: rotate(360deg); } }
+
+.boot-label { width: 74px; height: 9px; border-radius: 5px; margin: 0 0 10px 2px; }
+.boot-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.boot-chips.sub {
+  margin: 12px 0 2px 4px; padding-left: 14px;
+  border-left: 2px solid var(--accent-soft);
+}
+.boot-chip { height: 32px; width: 78px; border-radius: 999px; }
+.boot-chips.sub .boot-chip { height: 26px; width: 64px; border-radius: 8px; }
+.boot-chip.w70 { width: 70px; } .boot-chip.w55 { width: 58px; }
+.boot-chip.w80 { width: 84px; } .boot-chips.sub .boot-chip.w70 { width: 56px; }
+
+.boot-card { animation: none; cursor: default; }
+.boot-card:hover { box-shadow: var(--shadow); }
+.boot-txt { height: 9px; border-radius: 5px; }
+.boot-txt.price { height: 14px; width: 38%; margin-top: 3px; }
+.w75 { width: 75%; } .w70 { width: 70%; } .w65 { width: 65%; }
+.w60 { width: 60%; } .w55 { width: 55%; } .w50 { width: 50%; }
+.w45 { width: 45%; } .w40 { width: 40%; } .w35 { width: 35%; }
+.w30 { width: 30%; } .w80 { width: 80%; }
+
+.boot-label, .boot-chip, .boot-txt {
+  background: linear-gradient(100deg, #e9edf3 20%, #f7f9fc 38%, #e9edf3 56%);
+  background-size: 220% 100%;
+  animation: shimmer 1.35s linear infinite;
+}
+.boot-noscript {
+  max-width: 1280px; margin: 20px auto; padding: 14px 20px;
+  color: var(--text-sub); font-size: 14px; text-align: center;
+}
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 640px) {
   .header-inner { padding: 12px 16px; }
@@ -355,6 +402,10 @@ body {
   .chips { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .chip { flex: 0 0 auto; }
   .cat-chip { font-size: 9px; max-width: 52%; }
+  .boot-chips { flex-wrap: nowrap; overflow: hidden; }
+  .boot-chip { flex: 0 0 auto; height: 29px; }
+  .boot-chips.sub .boot-chip { height: 24px; }
+  .boot-bar { padding: 6px 0 14px; }
   .img-poster { padding: 9px 9px; gap: 5px; }
   .ip-head { font-size: 13px; }
   .ip-list { gap: 3px; }
@@ -365,6 +416,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .img-text, .img-poster, .img-skeleton { animation: none !important; }
-  .card-img img.card-photo { transition: none; }
+  .card, .img-text, .img-poster, .img-skeleton,
+  .boot-card, .boot-spin, .boot-label, .boot-chip, .boot-txt { animation: none !important; }
+  .card-img img.card-photo, .boot-piece { transition: none; }
 }

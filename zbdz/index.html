@@ -22,26 +22,64 @@
   </header>
 
   <nav class="filter-bar">
-    <!-- 一级分类 -->
-    <div class="filter-group">
-      <div class="filter-label"><span class="fl-dot lv1"></span>一级分类</div>
-      <div class="chips lv1-chips" id="lv1Chips"></div>
+    <!-- ===== 首屏加载骨架：数据就绪后由脚本移除 ===== -->
+    <div class="boot-piece" id="bootFilters">
+      <div class="boot-label"></div>
+      <div class="boot-chips">
+        <span class="boot-chip"></span><span class="boot-chip w70"></span><span class="boot-chip"></span>
+        <span class="boot-chip w55"></span><span class="boot-chip"></span><span class="boot-chip w80"></span>
+      </div>
+      <div class="boot-chips sub">
+        <span class="boot-chip sm"></span><span class="boot-chip sm w70"></span><span class="boot-chip sm"></span>
+      </div>
     </div>
-    <!-- 二级分类：缩进 + 引导线，明确是从属层 -->
-    <div class="filter-group sub" id="lv2Group" hidden>
-      <div class="filter-label"><span class="fl-branch">└─</span><span id="lv2Label">二级分类</span></div>
-      <div class="chips lv2-chips" id="lv2Chips"></div>
+
+    <!-- ===== 真实分类（载入后显示） ===== -->
+    <div id="realFilters" hidden>
+      <div class="filter-group">
+        <div class="filter-label"><span class="fl-dot lv1"></span>一级分类</div>
+        <div class="chips lv1-chips" id="lv1Chips"></div>
+      </div>
+      <div class="filter-group sub" id="lv2Group" hidden>
+        <div class="filter-label"><span class="fl-branch">└─</span><span id="lv2Label">二级分类</span></div>
+        <div class="chips lv2-chips" id="lv2Chips"></div>
+      </div>
     </div>
   </nav>
 
   <main class="container">
-    <div class="result-meta" id="resultMeta"></div>
-    <section class="grid" id="grid"></section>
-    <div class="more-wrap" id="moreWrap" hidden>
-      <button type="button" class="more-btn" id="moreBtn">加载更多</button>
+    <!-- ===== 首屏加载指示 + 骨架卡片 ===== -->
+    <div class="boot-piece boot-bar" id="bootBar">
+      <span class="boot-spin" aria-hidden="true"></span>
+      <span>正在载入商品数据…</span>
     </div>
-    <div class="empty" id="empty" hidden>没有匹配的商品</div>
+    <div class="boot-piece grid boot-grid" id="bootGrid">
+      <article class="card boot-card" style="--i:0"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w75"></div><div class="boot-txt w45"></div><div class="boot-txt w35 price"></div></div></article>
+      <article class="card boot-card" style="--i:1"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w60"></div><div class="boot-txt w40"></div><div class="boot-txt w30 price"></div></div></article>
+      <article class="card boot-card" style="--i:2"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w80"></div><div class="boot-txt w50"></div><div class="boot-txt w35 price"></div></div></article>
+      <article class="card boot-card" style="--i:3"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w65"></div><div class="boot-txt w45"></div><div class="boot-txt w30 price"></div></div></article>
+      <article class="card boot-card" style="--i:4"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w75"></div><div class="boot-txt w40"></div><div class="boot-txt w35 price"></div></div></article>
+      <article class="card boot-card" style="--i:5"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w55"></div><div class="boot-txt w50"></div><div class="boot-txt w30 price"></div></div></article>
+      <article class="card boot-card" style="--i:6"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w80"></div><div class="boot-txt w45"></div><div class="boot-txt w35 price"></div></div></article>
+      <article class="card boot-card" style="--i:7"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w60"></div><div class="boot-txt w40"></div><div class="boot-txt w30 price"></div></div></article>
+      <article class="card boot-card" style="--i:8"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w70"></div><div class="boot-txt w50"></div><div class="boot-txt w35 price"></div></div></article>
+      <article class="card boot-card" style="--i:9"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w65"></div><div class="boot-txt w45"></div><div class="boot-txt w30 price"></div></div></article>
+      <article class="card boot-card" style="--i:10"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w75"></div><div class="boot-txt w40"></div><div class="boot-txt w35 price"></div></div></article>
+      <article class="card boot-card" style="--i:11"><div class="card-img"><div class="img-skeleton"><span class="sk-ico">🖼</span></div></div><div class="card-body"><div class="boot-txt w60"></div><div class="boot-txt w50"></div><div class="boot-txt w30 price"></div></div></article>
+    </div>
+
+    <!-- ===== 真实内容（载入后显示） ===== -->
+    <div id="realContent" hidden>
+      <div class="result-meta" id="resultMeta"></div>
+      <section class="grid" id="grid"></section>
+      <div class="more-wrap" id="moreWrap" hidden>
+        <button type="button" class="more-btn" id="moreBtn">加载更多</button>
+      </div>
+      <div class="empty" id="empty" hidden>没有匹配的商品</div>
+    </div>
   </main>
+
+  <noscript><div class="boot-noscript">需要启用 JavaScript 才能查看商品目录。</div></noscript>
 
   <footer class="site-footer">
     <p>本页面为手动整理的商品目录，图片与价格仅供参考；价格以实际下单为准。</p>
