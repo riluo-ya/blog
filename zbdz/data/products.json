@@ -1,6 +1,6 @@
 {
   "site": "柔造周边定制 · 商品目录（本地离线版）",
-  "count": 552,
+  "count": 551,
   "categories": [
     {
       "lv1": "亚克力",
@@ -111,7 +111,7 @@
         "lv1": "亚克力",
         "lv2": "自定义亚克力"
       },
-      "image": "assets/images/1635.jpg",
+      "image": "",
       "price_first": null,
       "price_tiers": [
         {
@@ -122,7 +122,18 @@
       ],
       "vip_price": null,
       "vip_promotion": "",
-      "price_note": "按实际面积收费，价格以实际为准"
+      "price_note": "按实际面积收费，价格以实际为准",
+      "image_text": {
+        "headline": "100% 完全自定义",
+        "items": [
+          "自定义不同尺寸",
+          "自定义多种板材",
+          "自定义切割工艺",
+          "自定义各种结构",
+          "自定义任意孔位"
+        ],
+        "new_at": 3
+      }
     },
     {
       "id": 1765,
@@ -11088,20 +11099,6 @@
           "discount": null
         }
       ],
-      "vip_price": null,
-      "vip_promotion": "",
-      "price_note": ""
-    },
-    {
-      "id": 1419,
-      "title": "样品包",
-      "category": {
-        "lv1": "更多",
-        "lv2": "更多"
-      },
-      "image": "assets/images/1419.jpg",
-      "price_first": 54.9,
-      "price_tiers": [],
       "vip_price": null,
       "vip_promotion": "",
       "price_note": ""

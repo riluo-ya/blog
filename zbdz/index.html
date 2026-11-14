@@ -16,14 +16,22 @@
         <p class="subtitle" id="subtitle">数据加载中…</p>
       </div>
       <div class="search-box">
-        <input type="search" id="search" placeholder="搜索商品名称…" autocomplete="off" />
+        <input type="search" id="search" placeholder="搜索全部商品…" autocomplete="off" />
       </div>
     </div>
   </header>
 
   <nav class="filter-bar">
-    <div class="chips lv1-chips" id="lv1Chips"></div>
-    <div class="chips lv2-chips" id="lv2Chips"></div>
+    <!-- 一级分类 -->
+    <div class="filter-group">
+      <div class="filter-label"><span class="fl-dot lv1"></span>一级分类</div>
+      <div class="chips lv1-chips" id="lv1Chips"></div>
+    </div>
+    <!-- 二级分类：缩进 + 引导线，明确是从属层 -->
+    <div class="filter-group sub" id="lv2Group" hidden>
+      <div class="filter-label"><span class="fl-branch">└─</span><span id="lv2Label">二级分类</span></div>
+      <div class="chips lv2-chips" id="lv2Chips"></div>
+    </div>
   </nav>
 
   <main class="container">
@@ -36,16 +44,8 @@
   </main>
 
   <footer class="site-footer">
-    <p>本页面为手动整理的商品目录，图片与价价格仅供参考；价格以实际下单为准。</p>
+    <p>本页面为手动整理的商品目录，图片与价格仅供参考；价格以实际下单为准。</p>
   </footer>
-
-  <!-- 商品详情弹窗 -->
-  <div class="modal-mask" id="modalMask" hidden>
-    <div class="modal" role="dialog" aria-modal="true">
-      <button class="modal-close" id="modalClose" aria-label="关闭">×</button>
-      <div class="modal-body" id="modalBody"></div>
-    </div>
-  </div>
 
   <script src="assets/js/app.js"></script>
 </body>
